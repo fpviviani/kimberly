@@ -22,6 +22,8 @@ export async function saveCache(cachePath, data) {
   const dir = path.dirname(cachePath);
   await fs.mkdir(dir, { recursive: true });
   const tmp = `${cachePath}.tmp`;
+  // Pretty JSON so orchestration can safely read it via OpenClaw read tool
+  // (single-line JSON breaks the tool output truncation).
   await fs.writeFile(tmp, JSON.stringify(data, null, 2) + '\n', 'utf8');
   await fs.rename(tmp, cachePath);
 }
@@ -31,25 +33,29 @@ export function getCachedMovie(cache, movieTitle) {
   const entry = cache?.[key];
   if (!entry || typeof entry !== 'object') return null;
 
-  // New schema: { process_executed, torrents: { ... } }
+  // New schema: { process_executed, year, torrents: { ... } }
   if (entry.torrents && typeof entry.torrents === 'object') {
     const torrentTitles = Object.keys(entry.torrents);
     if (torrentTitles.length === 0) return null;
-    return entry;
+    return {
+      process_executed: entry.process_executed ?? false,
+      year: entry.year ?? null,
+      torrents: entry.torrents
+    };
   }
 
   // Backward-compat schema: { "Torrent title": {..}, ... }
   const torrentTitles = Object.keys(entry);
   if (torrentTitles.length === 0) return null;
-  return { process_executed: false, torrents: entry };
+  return { process_executed: false, year: null, torrents: entry };
 }
 
-export function upsertCachedMovie(cache, movieTitle, releases) {
+export function upsertCachedMovie(cache, movieTitle, releases, opts = {}) {
   const key = String(movieTitle || '').trim();
   if (!key) return cache;
   if (!cache || typeof cache !== 'object') cache = {};
 
-  const prevEntry = getCachedMovie(cache, key) || { process_executed: false, torrents: {} };
+  const prevEntry = getCachedMovie(cache, key) || { process_executed: false, year: null, torrents: {} };
   const prevTorrents = prevEntry.torrents || {};
 
   const torrents = {};
@@ -77,8 +83,11 @@ export function upsertCachedMovie(cache, movieTitle, releases) {
     };
   }
 
+  const year = (opts && Object.prototype.hasOwnProperty.call(opts, 'year')) ? opts.year : null;
+
   cache[key] = {
     process_executed: prevEntry.process_executed ?? false,
+    year: prevEntry.year ?? year ?? null,
     torrents
   };
 
@@ -91,13 +100,13 @@ export function patchCachedTorrent(cache, movieTitle, torrentTitle, patch) {
   if (!m || !t) return cache;
   if (!cache || typeof cache !== 'object') cache = {};
 
-  const entry = getCachedMovie(cache, m) || { process_executed: false, torrents: {} };
+  const entry = getCachedMovie(cache, m) || { process_executed: false, year: null, torrents: {} };
   const torrents = entry.torrents || {};
   const prevTorrent = (torrents[t] && typeof torrents[t] === 'object') ? torrents[t] : {};
 
   torrents[t] = { ...prevTorrent, ...patch };
 
-  cache[m] = { process_executed: entry.process_executed ?? false, torrents };
+  cache[m] = { process_executed: entry.process_executed ?? false, year: entry.year ?? null, torrents };
   return cache;
 }
 
@@ -105,7 +114,7 @@ export function patchMovie(cache, movieTitle, patch) {
   const m = String(movieTitle || '').trim();
   if (!m) return cache;
   if (!cache || typeof cache !== 'object') cache = {};
-  const entry = getCachedMovie(cache, m) || { process_executed: false, torrents: {} };
-  cache[m] = { ...entry, ...patch, torrents: entry.torrents || {} };
+  const entry = getCachedMovie(cache, m) || { process_executed: false, year: null, torrents: {} };
+  cache[m] = { ...entry, ...patch, year: (Object.prototype.hasOwnProperty.call(patch || {}, 'year') ? patch.year : (entry.year ?? null)), torrents: entry.torrents || {} };
   return cache;
 }

@@ -6,6 +6,8 @@ import { prowlarrSearch } from './prowlarr.js';
 import { inspectReleaseMetadata } from './metadata.js';
 import { defaultCachePath, loadCache, saveCache, getCachedMovie, upsertCachedMovie } from './cache.js';
 import { spawn } from 'node:child_process';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 
 // STUB: if you implement torrent downloading, uncomment the import below.
 import { downloadTorrentStub } from './torrent-download.stub.js';
@@ -139,7 +141,56 @@ function parseReleaseTitle(releaseTitle) {
 }
 
 const args = process.argv.slice(2);
-const listUrl = args[0];
+
+function parseMovieLabel(s) {
+  const raw = String(s || '').trim();
+  if (!raw) return null;
+
+  // Expected format: "name - year" (year optional)
+  // We split on the LAST " - " to preserve titles containing hyphens.
+  const idx = raw.lastIndexOf(' - ');
+  if (idx === -1) return { title: raw, year: null };
+
+  const title = raw.slice(0, idx).trim();
+  const yearRaw = raw.slice(idx + 3).trim();
+  const yearNum = Number(yearRaw);
+  const year = Number.isFinite(yearNum) && yearNum > 1800 && yearNum < 2200 ? yearNum : null;
+  return { title: title || raw, year };
+}
+
+function parseMoviesArrayArg(val) {
+  const s = String(val || '').trim();
+  if (!s) return null;
+
+  // Primary: JSON array string
+  if (s.startsWith('[')) {
+    const parsed = JSON.parse(s);
+    if (!Array.isArray(parsed)) throw new Error('movies arg must be a JSON array');
+    return parsed.map(parseMovieLabel).filter(Boolean);
+  }
+
+  return null;
+}
+
+// CLI modes:
+// 1) List URL: node src/cli.js "https://boxd.it/..."
+// 2) Movies array: node src/cli.js --movies '["Title - 1999", "Other - 2001"]'
+//    (also accepts passing the JSON array as the first arg)
+let listUrl = '';
+let moviesFromArg = null;
+
+if (args[0] === '--movies' || args[0] === '-m') {
+  moviesFromArg = parseMoviesArrayArg(args[1]);
+  if (!moviesFromArg) throw new Error('Missing/invalid --movies JSON array');
+} else {
+  // Auto-detect JSON array
+  const maybeMovies = parseMoviesArrayArg(args[0]);
+  if (maybeMovies) {
+    moviesFromArg = maybeMovies;
+  } else {
+    listUrl = String(args[0] || '').trim();
+  }
+}
 const maxGiB = Number(process.env.MAX_GIB || '10');
 const minGiB = Number(process.env.MIN_GIB || '1');
 const maxBytes = maxGiB * (1024 ** 3);
@@ -157,8 +208,10 @@ const metadataTimeoutMs = Number(process.env.METADATA_TIMEOUT_MS || '120000');
 const metadataConcurrency = Number(process.env.METADATA_CONCURRENCY || '5');
 const hdOnly = (process.env.HD_ONLY || '0') === '1' || (process.env.HD_ONLY || '').toLowerCase() === 'true';
 
-if (!listUrl) {
-  console.error('Usage: torrent-auto-crawlerr <letterboxd_list_url>');
+if (!listUrl && !moviesFromArg) {
+  console.error('Usage:');
+  console.error('  torrent-auto-crawlerr <letterboxd_list_url>');
+  console.error('  torrent-auto-crawlerr --movies "[\\"Title - 1999\\", \\"Other - 2001\\"]"');
   console.error('Env: PROWLARR_URL (default http://localhost:9696), PROWLARR_API_KEY (required), MAX_GIB (default 10)');
   process.exit(2);
 }
@@ -178,11 +231,57 @@ const prowlarrTimeoutMs = Number(process.env.PROWLARR_TIMEOUT_MS || '30000');
 const cachePath = process.env.CACHE_FILE ? process.env.CACHE_FILE : defaultCachePath();
 let cache = await loadCache(cachePath);
 
-const movies = await fetchLetterboxdListMovies(listUrl);
+// Write a CLI snapshot for orchestration (OpenClaw cron) without needing to read the huge cache.json.
+// This file is intentionally pretty-printed (multi-line) to be compatible with the OpenClaw read tool.
+const cronStatePath = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'memory', 'cron-state.json');
+async function loadCronState() {
+  try {
+    const raw = await fs.readFile(cronStatePath, 'utf8');
+    const data = JSON.parse(raw);
+    return (data && typeof data === 'object') ? data : {};
+  } catch (e) {
+    if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) return {};
+    return {};
+  }
+}
+async function saveCronState(data) {
+  const dir = path.dirname(cronStatePath);
+  await fs.mkdir(dir, { recursive: true });
+  const tmp = `${cronStatePath}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(data, null, 2) + '\n', 'utf8');
+  await fs.rename(tmp, cronStatePath);
+}
+
+const movies = moviesFromArg ? moviesFromArg : await fetchLetterboxdListMovies(listUrl);
 
 if (!movies.length) {
   console.error('No movies found on the Letterboxd list page. Is it public?');
   process.exit(1);
+}
+
+const rewriteCache = (process.env.REWRITE_CACHE || '0') === '1' || String(process.env.REWRITE_CACHE || '').toLowerCase() === 'true';
+
+// Limit how many NEW movies we add to the cache per run (to avoid bursts).
+// - If <= 0: unlimited
+const maxNewMoviesPerRunRaw = Number(process.env.MAX_NEW_MOVIES_PER_RUN || '5');
+const maxNewMoviesPerRun = maxNewMoviesPerRunRaw > 0 ? maxNewMoviesPerRunRaw : Number.POSITIVE_INFINITY;
+
+let newCount = 0;
+const allowProcess = new Set();
+for (const m of movies) {
+  const cached = getCachedMovie(cache, m.title);
+  const isNew = !cached;
+
+  // If rewriteCache is true, we allow re-processing cached movies.
+  if (!isNew || rewriteCache) {
+    allowProcess.add(m.title);
+    continue;
+  }
+
+  if (newCount < maxNewMoviesPerRun) {
+    allowProcess.add(m.title);
+    newCount += 1;
+  }
 }
 
 const results = [];
@@ -190,10 +289,18 @@ const results = [];
 await Promise.all(
   movies.map((movie) =>
     limit(async () => {
-      const rewriteCache = (process.env.REWRITE_CACHE || '0') === '1' || String(process.env.REWRITE_CACHE || '').toLowerCase() === 'true';
+      if (!allowProcess.has(movie.title)) {
+        // Skip adding this new movie to cache in this run.
+        results.push({ movie, skipped: true, reason: `max new movies per run reached (${maxNewMoviesPerRunRaw})` });
+        return;
+      }
 
       const cached = getCachedMovie(cache, movie.title);
-      if (cached && !rewriteCache) {
+      const cachedTorrentCount = cached?.torrents ? Object.keys(cached.torrents).length : 0;
+
+      // If it is cached BUT empty (0 torrents), we should retry the search even without REWRITE_CACHE.
+      // This can happen when the first pass failed / query was too generic (e.g. Toll/Pedágio).
+      if (cached && !rewriteCache && cachedTorrentCount > 0) {
         const matches = Object.entries(cached.torrents).map(([title, v]) => ({
           title,
           parsedName: title,
@@ -208,13 +315,67 @@ await Promise.all(
         return;
       }
 
-      const q = movie.year ? `${movie.title} ${movie.year}` : movie.title;
-      let releases;
+      // Build one or more queries for Prowlarr.
+      // Some titles are too generic or too punctuation-sensitive and need alternate queries.
+      const queries = [];
+      const primaryQ = movie.year ? `${movie.title} ${movie.year}` : movie.title;
+      queries.push(primaryQ);
+
+      // Also try a "sanitized" query (remove punctuation like apostrophes) to avoid Prowlarr/Indexer sensitivity.
+      // Example: "Don't Play Us Cheap" -> "Dont Play Us Cheap"
+      const sanitizeQuery = (s) => String(s || '')
+        .replace(/[\u2019']/g, '') // remove apostrophes (don’t -> dont)
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const sanitizedTitle = sanitizeQuery(movie.title);
+      if (sanitizedTitle && sanitizedTitle.toLowerCase() !== String(movie.title || '').trim().toLowerCase()) {
+        const q2 = movie.year ? `${sanitizedTitle} ${movie.year}` : sanitizedTitle;
+        queries.push(q2);
+      }
+
+      // Hardcoded override for the Brazilian movie "Pedágio" (Letterboxd title: "Toll", 2023)
+      if (String(movie.title || '').trim().toLowerCase() === 'toll' && Number(movie.year) === 2023) {
+        queries.push(`Pedágio ${movie.year}`);
+        queries.push(`Pedagio ${movie.year}`);
+      }
+
+      let releases = [];
       try {
-        releases = await prowlarrSearch({ baseUrl, apiKey, query: q, timeoutMs: prowlarrTimeoutMs });
+        const seen = new Set();
+        for (const q of queries) {
+          const batch = await prowlarrSearch({ baseUrl, apiKey, query: q, timeoutMs: prowlarrTimeoutMs });
+          for (const r of batch) {
+            const key = String(r?.guid || r?.downloadUrl || r?.title || '');
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            releases.push(r);
+          }
+        }
       } catch (e) {
         results.push({ movie, error: String(e?.message || e) });
         return;
+      }
+
+      const q = primaryQ;
+
+      const titleMatchers = [movie.title];
+
+      // Also accept a sanitized version of the movie title for title-matching.
+      // Example: "Don't Play Us Cheap" -> "Dont Play Us Cheap"
+      const sanitizeTitleForMatch = (s) => String(s || '')
+        .replace(/[\u2019']/g, '') // remove apostrophes
+        .replace(/[^\p{L}\p{N}]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const sanitizedMatch = sanitizeTitleForMatch(movie.title);
+      if (sanitizedMatch && sanitizedMatch.toLowerCase() !== String(movie.title || '').trim().toLowerCase()) {
+        titleMatchers.push(sanitizedMatch);
+      }
+
+      if (String(movie.title || '').trim().toLowerCase() === 'toll' && Number(movie.year) === 2023) {
+        titleMatchers.push('Pedágio');
+        titleMatchers.push('Pedagio');
       }
 
       const filtered = (await Promise.all(
@@ -248,7 +409,7 @@ await Promise.all(
           })
       ))
         .filter((r) => r && r.downloadUrl)
-        .filter((r) => (englishTitleOnly ? releaseMatchesMovieTitle(movie.title, r.title) : true))
+        .filter((r) => (englishTitleOnly ? titleMatchers.some((t) => releaseMatchesMovieTitle(t, r.title)) : true))
         .filter((r) => {
           if (!excludeTermList.length) return true;
           const t = normalizeReleaseTitle(r.title);
@@ -373,7 +534,8 @@ await Promise.all(
           debrid_id: '',
           debrid_urls: { video: '', subtitle: '' },
           last_auto_download_error: ''
-        }))
+        })),
+        { year: movie.year ?? null }
       );
       await saveCache(cachePath, cache);
 
@@ -388,6 +550,32 @@ results.sort((a, b) => {
   const bi = movies.findIndex((m) => m.title === b.movie.title && m.year === b.movie.year);
   return ai - bi;
 });
+
+// Update cron-state snapshot for orchestration.
+{
+  const prev = await loadCronState();
+
+  const snap = {};
+  for (const m of movies) {
+    const entry = getCachedMovie(cache, m.title);
+    const torrents = entry?.torrents && typeof entry.torrents === 'object' ? entry.torrents : {};
+    const any_downloading = Object.values(torrents).some((t) => Boolean(t && typeof t === 'object' && t.downloading));
+
+    snap[m.title] = {
+      process_executed: Boolean(entry?.process_executed),
+      any_downloading
+    };
+  }
+
+  const next = {
+    ...prev,
+    lastRunAt: new Date().toISOString(),
+    lastCliKeys: prev?.cliKeys && typeof prev.cliKeys === 'object' ? prev.cliKeys : (prev?.lastCliKeys && typeof prev.lastCliKeys === 'object' ? prev.lastCliKeys : {}),
+    cliKeys: snap
+  };
+
+  await saveCronState(next);
+}
 
 // Output: JSON array of movie titles from cache where process_executed != true
 // (requested for orchestration)

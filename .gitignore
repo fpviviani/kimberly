@@ -6,3 +6,5 @@ torrents/*.torrent
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+memory/
+memory/*.json*

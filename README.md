@@ -36,8 +36,16 @@ cp .env.example .env
 
 ### Prowlarr CLI (cache builder)
 
+**Mode A: Letterboxd list URL**
+
 ```bash
 node src/cli.js "https://boxd.it/SnAYa"
+```
+
+**Mode B: explicit movies array** (JSON array; each item is `"name - year"`)
+
+```bash
+node src/cli.js --movies "[\"Don't Play Us Cheap - 1973\", \"The French Connection - 1971\"]"
 ```
 
 Output: a JSON array with movie titles from the cache where `process_executed !== true`.
@@ -65,6 +73,7 @@ node src/debrid-monitor.js
 ## Useful environment variables
 
 - `REWRITE_CACHE` (default `false`): if `true/1`, `cli.js` rewrites the cache entry **for the current movie** even if it already exists (does not touch other movies).
+- `MAX_NEW_MOVIES_PER_RUN` (default `5`): maximum number of *new* movies that `cli.js` will add to the cache per run (set to `0` to disable).
 - `DEBRID_VERBOSE` (default `false`): enables detailed logs for the debrid flow (engine + HTTP request success logs).
 - `DEBRID_RETRY_DELAY_MS` (default `3000`): base delay for retries when the provider returns HTTP `429`.
   - 1st retry = 3s, 2nd = 6s, 3rd = 9s
@@ -83,6 +92,7 @@ Filtering / output:
 Per movie:
 
 - `process_executed` (bool): default `false`. If `true`, `debrid-cli` skips the movie.
+- `year` (number|null): cached movie year (used for naming the download folder)
 - `torrents`: map `{ torrentTitle -> torrentObject }`
 
 Per torrent inside `torrents`:
@@ -103,11 +113,25 @@ There is an `AUTO_DOWNLOAD` env flag (default `false`) to plug an automatic down
 
 Related env:
 
-- `AUTO_DOWNLOAD_DEST_DIR`
+- `AUTO_DOWNLOAD_DEST_DIR` (final library folder)
+- `AUTO_DOWNLOAD_STAGING_DIR` (temporary download folder; keep it outside Plex library)
+- `AUTO_DOWNLOAD_REUSE_STAGING` (default `true/1`): if a previous run was killed mid-flight, reuse already-downloaded video in the staging folder and just move/import.
+
+Tip: we do NOT rename files.
+
+Folder naming is controlled by `DIR_NAME_MOVIE_ONLY`:
+- default (`true`): folder name is ONLY the movie name
+- if `false`: folder name becomes `name-year-tmdb_<tmdbId>` (when tmdbId can be resolved), else `name-year`
 - `PLEX_BASE_URL`
 - `PLEX_TOKEN`
 - `PLEX_SECTION_ID_FILMES`
 - `PLEX_REFRESH_AFTER_DOWNLOAD` (default `false`): if `true/1`, calls `plexRefreshSection` after download/unzip.
+- `RADARR_IMPORT_AFTER_DOWNLOAD` (default `false`): if `true/1`, adds the movie to Radarr after a successful auto-download (so Bazarr can fetch subtitles).
+  - Implementation notes: we resolve `tmdbId` via `GET /api/v3/parse` (prefers `parsedMovieInfo.tmdbId`) with a fallback to `GET /api/v3/movie/lookup`.
+- `RADARR_BASE_URL` (default `http://127.0.0.1:7878`)
+- `RADARR_API_KEY`
+- `RADARR_QUALITY_PROFILE_ID` (default `7`)
+- `RADARR_ROOT_FOLDER_PATH` (default `/home/fabio/Vídeos/Filmes`)
 
 Stub file:
 
@@ -165,6 +189,17 @@ Command: `torrent-auto-crawlerr-torrent-import`
   --torrent "Phantom of the Paradise 1974 1080p BluRay x265-RARBG" \
   --url "https://example.com/file.torrent"
 ```
+
+## Recent changes / notes (2026-02)
+
+- `cli.js` now supports **two input modes**:
+  - list URL (Letterboxd)
+  - `--movies` JSON array in the format `"name - year"`
+- Prowlarr search is now more robust to punctuation (ex.: **Don't → Dont**) by trying a sanitized query variant.
+- Debrid/monitor improvements:
+  - Treat more video extensions as video (not only `.mkv/.mp4`; now includes `.avi`, `.m2ts`, `.mts`, `.m4v`, `.mov`).
+  - If a torrent becomes `queued/downloading` after file selection, we **leave it in Debrid** and let the monitor finish later.
+  - When we remove a torrent from Debrid, we clear stale `sent_to_debrid/debrid_id` in cache (avoid “phantom sent”).
 
 ## Provider base URL + API key (RealDebrid stub vs Mock)
 

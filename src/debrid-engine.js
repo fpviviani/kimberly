@@ -4,17 +4,27 @@ function ext(path) {
 }
 
 function pickFiles(files, { requireSrt }) {
-  const video = files.filter((f) => {
+  const video = (files || []).filter((f) => {
     const e = ext(f.path);
-    return e === 'mkv' || e === 'mp4';
+    return e === 'mkv' || e === 'mp4' || e === 'avi' || e === 'm2ts' || e === 'mts' || e === 'm4v' || e === 'mov';
   });
-  video.sort((a, b) => String(a.path).localeCompare(String(b.path)));
 
-  const subs = files.filter((f) => ext(f.path) === 'srt');
+  // Pick the BIGGEST video file to avoid extras / small clips.
+  // Real-Debrid info returns: files:[{ id, path, bytes }]
+  video.sort((a, b) => {
+    const ba = typeof a.bytes === 'number' ? a.bytes : Number(a.bytes || 0);
+    const bb = typeof b.bytes === 'number' ? b.bytes : Number(b.bytes || 0);
+    if (bb !== ba) return bb - ba; // desc
+    return String(a.path).localeCompare(String(b.path));
+  });
+
+  const subs = (files || []).filter((f) => ext(f.path) === 'srt');
+  // Keep deterministic ordering for subs (we still pick the first)
   subs.sort((a, b) => String(a.path).localeCompare(String(b.path)));
 
   const chosen = [];
   if (video[0]) chosen.push(video[0]);
+
   // IMPORTANT: only select .srt in the strict pass (requireSrt=true).
   // In the fallback pass (video-only), never select subtitles even if available.
   if (requireSrt && subs[0]) chosen.push(subs[0]);
@@ -29,6 +39,11 @@ function pickFiles(files, { requireSrt }) {
 
 async function sendOne({ provider, attempt }) {
   if (attempt.magnet) {
+    // Some cache entries might contain non-magnet URLs (e.g. prowlarr /download links).
+    // Only treat it as a magnet when it starts with magnet:.
+    if (!String(attempt.magnet).startsWith('magnet:')) {
+      throw new Error('Attempt magnet is not a magnet: URL');
+    }
     return provider.sendTorrent({ magnet: attempt.magnet });
   }
   if (attempt.torrent_path) {
@@ -40,7 +55,7 @@ async function sendOne({ provider, attempt }) {
   throw new Error('Attempt has neither magnet nor torrent_path');
 }
 
-async function tryAttemptsOnce({ provider, attempts, requireSrt, logger, onSent, onDownloaded }) {
+async function tryAttemptsOnce({ provider, attempts, requireSrt, logger, onSent, onDownloaded, onDownloading, onRemoved }) {
   const verbose = (process.env.DEBRID_VERBOSE === '1') || String(process.env.DEBRID_VERBOSE || '').toLowerCase() === 'true';
   if (verbose) logger.log(`ENGINE: pass=${requireSrt ? 'strict(video+srt)' : 'fallback(video-only)'} attempts=${attempts.length}`);
 
@@ -62,12 +77,14 @@ async function tryAttemptsOnce({ provider, attempts, requireSrt, logger, onSent,
 
       if (!selection.hasVideo) {
         logger.log(`ENGINE: attempt="${attempt.title}" :: skip (no video .mkv/.mp4), removing id=${id}`);
+        if (onRemoved) await onRemoved({ attempt, id });
         await provider.removeTorrent({ id });
         continue;
       }
 
       if (requireSrt && !selection.hasSrt) {
         logger.log(`ENGINE: attempt="${attempt.title}" :: skip (no .srt), removing id=${id}`);
+        if (onRemoved) await onRemoved({ attempt, id });
         await provider.removeTorrent({ id });
         continue;
       }
@@ -86,12 +103,22 @@ async function tryAttemptsOnce({ provider, attempts, requireSrt, logger, onSent,
         return { ok: true, id, selected: selection, attempt };
       }
 
+      // If it's queued/downloading after file selection, leave it in Debrid so it can finish.
+      // The monitor job will later detect status=downloaded and finalize.
+      if (info2.status === 'queued' || info2.status === 'downloading') {
+        logger.log(`ENGINE: attempt="${attempt.title}" :: left in debrid (status=${info2.status}) id=${id}`);
+        if (onDownloading) await onDownloading({ attempt, id });
+        return { ok: false, left_in_debrid: true, id, status: info2.status, selected: selection, attempt };
+      }
+
       if (verbose) logger.log(`ENGINE: attempt="${attempt.title}" :: not downloaded yet (status=${info2.status}), removing id=${id}`);
+      if (onRemoved) await onRemoved({ attempt, id });
       await provider.removeTorrent({ id });
     } catch (e) {
       if (id) {
         try {
           if (verbose) logger.log(`ENGINE: attempt="${attempt.title}" :: error, cleaning up id=${id}`);
+          if (onRemoved) await onRemoved({ attempt, id });
           await provider.removeTorrent({ id });
         } catch {}
       }
@@ -103,7 +130,7 @@ async function tryAttemptsOnce({ provider, attempts, requireSrt, logger, onSent,
   return { ok: false };
 }
 
-async function leaveAllInDebridVideoOnly({ provider, attempts, logger, onSent, onDownloading }) {
+async function leaveAllInDebridVideoOnly({ provider, attempts, logger, onSent, onDownloading, onRemoved }) {
   const verbose = (process.env.DEBRID_VERBOSE === '1') || String(process.env.DEBRID_VERBOSE || '').toLowerCase() === 'true';
   if (verbose) logger.log(`ENGINE: step3 (leave in debrid video-only) attempts=${attempts.length}`);
 
@@ -123,19 +150,25 @@ async function leaveAllInDebridVideoOnly({ provider, attempts, logger, onSent, o
 
       const selection = pickFiles(info.files, { requireSrt: false });
       if (!selection.hasVideo) {
-        logger.log(`ENGINE: step3 attempt="${attempt.title}" :: skip (no video .mkv/.mp4), removing id=${id}`);
+        logger.log(`ENGINE: step3 attempt="${attempt.title}" :: skip (no video), removing id=${id}`);
         // keep your debrid clean: remove useless items
+        if (onRemoved) await onRemoved({ attempt, id });
         await provider.removeTorrent({ id });
         continue;
       }
 
-      // Video only: remove any .srt from selection for step3
+      // Video only: pick the BIGGEST video file (avoid extras)
       const videoIds = (info.files || [])
         .filter((f) => {
           const e = ext(f.path);
-          return e === 'mkv' || e === 'mp4';
+          return e === 'mkv' || e === 'mp4' || e === 'avi' || e === 'm2ts' || e === 'mts' || e === 'm4v' || e === 'mov';
         })
-        .sort((a, b) => String(a.path).localeCompare(String(b.path)))
+        .sort((a, b) => {
+          const ba = typeof a.bytes === 'number' ? a.bytes : Number(a.bytes || 0);
+          const bb = typeof b.bytes === 'number' ? b.bytes : Number(b.bytes || 0);
+          if (bb !== ba) return bb - ba;
+          return String(a.path).localeCompare(String(b.path));
+        })
         .slice(0, 1)
         .map((f) => f.id);
 
@@ -150,6 +183,7 @@ async function leaveAllInDebridVideoOnly({ provider, attempts, logger, onSent, o
       if (id) {
         try {
           if (verbose) logger.log(`ENGINE: step3 attempt="${attempt.title}" :: error, cleaning up id=${id}`);
+          if (onRemoved) await onRemoved({ attempt, id });
           await provider.removeTorrent({ id });
         } catch {}
       }
@@ -165,13 +199,13 @@ async function leaveAllInDebridVideoOnly({ provider, attempts, logger, onSent, o
  * 1) require video + .srt
  * 2) fallback: require only video
  */
-export async function tryMagnetsUntilDownloaded({ provider, attempts, logger = console, onSent, onDownloaded, onDownloading }) {
-  const strict = await tryAttemptsOnce({ provider, attempts, requireSrt: true, logger, onSent, onDownloaded });
+export async function tryMagnetsUntilDownloaded({ provider, attempts, logger = console, onSent, onDownloaded, onDownloading, onRemoved }) {
+  const strict = await tryAttemptsOnce({ provider, attempts, requireSrt: true, logger, onSent, onDownloaded, onDownloading, onRemoved });
   if (strict.ok) return strict;
 
-  const fallback = await tryAttemptsOnce({ provider, attempts, requireSrt: false, logger, onSent, onDownloaded });
+  const fallback = await tryAttemptsOnce({ provider, attempts, requireSrt: false, logger, onSent, onDownloaded, onDownloading, onRemoved });
   if (fallback.ok) return fallback;
 
   // Step 3: if nothing downloaded in step1/2, leave ALL torrents in debrid (video only) so it keeps trying.
-  return leaveAllInDebridVideoOnly({ provider, attempts, logger, onSent, onDownloading });
+  return leaveAllInDebridVideoOnly({ provider, attempts, logger, onSent, onDownloading, onRemoved });
 }

@@ -68,6 +68,11 @@ function parseReleaseTitle(releaseTitle) {
   return { name, year, codec, res };
 }
 
+function inferYearFromReleaseTitle(title) {
+  const y = parseReleaseTitle(title || '').year;
+  return y && /^\d{4}$/.test(String(y)) ? Number(y) : null;
+}
+
 function priorityRank({ res, codec }) {
   const r = String(res ?? '').toLowerCase();
   const c = normalizeCodec(codec);
@@ -191,7 +196,7 @@ for (const movie of movies) {
       .filter((r) => Boolean(r.magnet) || Boolean(r.torrent_path));
   } else {
     const q = movie.year ? `${movie.title} ${movie.year}` : movie.title;
-    const releases = await limit(() => prowlarrSearch({ baseUrl, apiKey, query: q, timeoutMs: prowlarrTimeoutMs }))();
+    const releases = await limit(() => prowlarrSearch({ baseUrl, apiKey, query: q, timeoutMs: prowlarrTimeoutMs }));
 
     const filtered = releases
       .filter((r) => typeof r?.size === 'number' && r.size >= minBytes && r.size <= maxBytes)
@@ -236,7 +241,8 @@ for (const movie of movies) {
         debrid_id: '',
         debrid_urls: { video: '', subtitle: '' },
         last_auto_download_error: ''
-      }))
+      })),
+      { year: movie.year ?? null }
     );
     await saveCache(cachePath, cache);
 
@@ -269,27 +275,45 @@ for (const movie of movies) {
       cache = patchCachedTorrent(cache, movie.title, attempt.title, { downloading: true, sent_to_debrid: true, debrid_id: String(id) });
       await saveCache(cachePath, cache);
     },
+    onRemoved: async ({ attempt, id }) => {
+      // If we removed it from Debrid, clear the cached id/flags so we don't show phantom "sent".
+      cache = patchCachedTorrent(cache, movie.title, attempt.title, { downloading: false, sent_to_debrid: false, downloaded: false, debrid_id: '' });
+      await saveCache(cachePath, cache);
+    },
     onDownloaded: async ({ attempt, id }) => {
       // Store debrid direct links (video/subtitle) from getTorrentInfo().
-      // Real-Debrid returns `links[]` aligned with `files[]`.
+      // Real-Debrid returns `links[]` aligned with *selected* files, not the full `files[]`.
       try {
         const info = await provider.getTorrentInfo({ id });
         const files = Array.isArray(info?.files) ? info.files : [];
         const links = Array.isArray(info?.links) ? info.links : [];
 
-        let video = '';
-        let subtitle = '';
-
-        for (let i = 0; i < files.length; i++) {
-          const f = files[i];
+        // Build a map for selected files -> link (consume links in order)
+        let j = 0;
+        const selected = [];
+        for (const f of files) {
           if (!f) continue;
-          const p = String(f.path || '').toLowerCase();
-          const link = typeof links[i] === 'string' ? links[i] : '';
+          const sel = Number(f.selected || 0);
+          if (sel !== 1) continue;
+          const link = typeof links[j] === 'string' ? links[j] : '';
+          j += 1;
           if (!link) continue;
-
-          if (!subtitle && p.endsWith('.srt')) subtitle = link;
-          if (!video && (p.endsWith('.mkv') || p.endsWith('.mp4'))) video = link;
+          selected.push({ ...f, link });
         }
+
+        // Subtitle: first .srt among selected
+        const sub = selected.find((x) => String(x.path || '').toLowerCase().endsWith('.srt'));
+
+        // Video: pick the biggest selected video file
+        const vids = selected
+          .filter((x) => {
+            const p = String(x.path || '').toLowerCase();
+            return p.endsWith('.mkv') || p.endsWith('.mp4');
+          })
+          .sort((a, b) => Number(b.bytes || 0) - Number(a.bytes || 0));
+
+        const video = vids[0]?.link || '';
+        const subtitle = sub?.link || '';
 
         cache = patchCachedTorrent(cache, movie.title, attempt.title, {
           debrid_urls: { video, subtitle }
@@ -309,31 +333,41 @@ for (const movie of movies) {
     // AUTO_DOWNLOAD hook: if enabled, unrestrict the stored debrid links and download them.
     const autoDownload = (process.env.AUTO_DOWNLOAD || '0') === '1' || (process.env.AUTO_DOWNLOAD || '').toLowerCase() === 'true';
     const destDir = process.env.AUTO_DOWNLOAD_DEST_DIR;
-    let okToMarkExecuted = true;
+
+    // Only mark process_executed=true after ALL required downloads (video/subtitle) finish successfully.
+    // If AUTO_DOWNLOAD is disabled, we should NOT mark as executed.
+    let okToMarkExecuted = false;
 
     if (autoDownload && destDir) {
       const entry = getCachedMovie(cache, movie.title);
       const torrentObj = entry?.torrents?.[res.attempt?.title];
       const debridUrls = torrentObj?.debrid_urls;
 
+      const inferredYear = movie.year ?? entry?.year ?? inferYearFromReleaseTitle(res.attempt?.title);
+      if (!movie.year && inferredYear && !entry?.year) {
+        cache = patchMovie(cache, movie.title, { year: inferredYear });
+        await saveCache(cachePath, cache);
+      }
+
       const dlRes = await runAutoDownload({
         provider,
         movieTitle: movie.title,
+        movieYear: inferredYear,
         destDir,
         debridUrls,
         plexSectionId: process.env.PLEX_SECTION_ID_FILMES || '1',
         logger: console
       });
 
-      // Only mark movie as executed after all downloads (video/subtitle) finish successfully.
-      okToMarkExecuted = Boolean(dlRes?.okAll);
+      // Only mark movie as executed after we actually downloaded something AND all required downloads succeeded.
+      okToMarkExecuted = Boolean(dlRes?.okAll && dlRes?.downloadedAny);
     }
 
     if (okToMarkExecuted) {
       cache = patchMovie(cache, movie.title, { process_executed: true });
       await saveCache(cachePath, cache);
     } else {
-      const msg = `some downloads failed (movie="${movie.title}")`;
+      const msg = autoDownload ? `some downloads failed (movie="${movie.title}")` : `AUTO_DOWNLOAD is disabled (movie="${movie.title}")`;
       cache = patchCachedTorrent(cache, movie.title, res.attempt?.title || '', { last_auto_download_error: msg });
       await saveCache(cachePath, cache);
       console.log(`AUTO_DOWNLOAD: not marking process_executed=true because ${msg}`);
