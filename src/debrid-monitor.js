@@ -3,6 +3,8 @@ import 'dotenv/config';
 import { defaultCachePath, loadCache, saveCache, getCachedMovie, patchCachedTorrent, patchMovie } from './cache.js';
 import { MockDebridProvider } from './providers/mockDebrid.js';
 import { runAutoDownload } from './auto-download.js';
+import path from 'node:path';
+import { initDailyLogger } from './logging.js';
 
 function usage() {
   console.log('Usage: torrent-auto-crawlerr-debrid-monitor');
@@ -21,16 +23,22 @@ let cache = await loadCache(cachePath);
 
 const provider = new MockDebridProvider({ baseUrl: providerBaseUrl, apiKey: realdebridApiKey });
 
+const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const dailyLog = await initDailyLogger({ projectRoot, logger: console });
+
 let checked = 0;
 let newlyDownloaded = 0;
 
 for (const movieTitle of Object.keys(cache)) {
-  const entry = getCachedMovie(cache, movieTitle);
+  let entry = getCachedMovie(cache, movieTitle);
   if (!entry) continue;
   if (entry.process_executed) continue;
 
   const torrents = entry.torrents || {};
   for (const [torrentTitle, t] of Object.entries(torrents)) {
+    // If this movie got executed by a previous torrent in this same run, stop.
+    entry = getCachedMovie(cache, movieTitle);
+    if (entry?.process_executed) break;
     if (!t || typeof t !== 'object') continue;
     if (!t.debrid_id) continue;
 
@@ -53,7 +61,9 @@ for (const movieTitle of Object.keys(cache)) {
     let info;
     try {
       info = await provider.getTorrentInfo({ id: String(t.debrid_id) });
-    } catch {
+    } catch (e) {
+      const msg = String(e?.message || e);
+      await dailyLog.log(`ERROR: monitor_getTorrentInfo movie="${movieTitle}" release="${torrentTitle}" id=${String(t.debrid_id)} msg=${JSON.stringify(msg)}`);
       continue;
     }
 
@@ -155,14 +165,43 @@ for (const movieTitle of Object.keys(cache)) {
         });
 
         okToMarkExecuted = Boolean(dlRes?.okAll && dlRes?.downloadedAny);
+        if (okToMarkExecuted) {
+          await dailyLog.log(`DOWNLOADED: movie="${movieTitle}" release="${torrentTitle}" dest="${dlRes?.movieDestDir || destDir}"`);
+        }
       }
 
       if (okToMarkExecuted) {
         cache = patchMovie(cache, movieTitle, { process_executed: true });
+
+        // IMPORTANT: once a movie is successfully executed, stop downloading alternate releases.
+        // Best-effort cleanup: remove other RD torrents for this movie to avoid wasting slots/bandwidth.
+        try {
+          const entry3 = getCachedMovie(cache, movieTitle);
+          const torrents3 = entry3?.torrents || {};
+          for (const [otherTitle, other] of Object.entries(torrents3)) {
+            if (otherTitle === torrentTitle) continue;
+            const otherId = other?.debrid_id ? String(other.debrid_id) : '';
+            if (!otherId) continue;
+            // Remove from RD (ignore failures)
+            try {
+              await provider.removeTorrent({ id: otherId });
+            } catch {}
+
+            // Mark as ignored to avoid any future retries if something toggles flags.
+            cache = patchCachedTorrent(cache, movieTitle, otherTitle, {
+              downloading: false,
+              downloaded: true,
+              last_auto_download_error: 'ignored (another release already completed)'
+            });
+          }
+        } catch {}
       } else {
         const msg = autoDownload ? `some downloads failed (movie="${movieTitle}")` : `AUTO_DOWNLOAD is disabled (movie="${movieTitle}")`;
         cache = patchCachedTorrent(cache, movieTitle, torrentTitle, { last_auto_download_error: msg });
         console.log(`AUTO_DOWNLOAD: not marking process_executed=true because ${msg}`);
+        if (autoDownload) {
+          await dailyLog.log(`ERROR: auto_download movie="${movieTitle}" release="${torrentTitle}" msg=${JSON.stringify(msg)}`);
+        }
       }
     }
   }

@@ -8,9 +8,52 @@ import { tryMagnetsUntilDownloaded } from './debrid-engine.js';
 import { defaultCachePath, loadCache, saveCache, getCachedMovie, upsertCachedMovie, patchCachedTorrent, patchMovie } from './cache.js';
 import { spawn } from 'node:child_process'
 import { runAutoDownload } from './auto-download.js';
+import axios from 'axios';
+import crypto from 'node:crypto';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import { initDailyLogger } from './logging.js';
 
 function bytesToGiB(b) {
   return b / (1024 ** 3);
+}
+
+async function downloadTorrentFromProwlarr({ url, apiKey }) {
+  if (!url) throw new Error('downloadTorrentFromProwlarr: missing url');
+  if (!apiKey) throw new Error('downloadTorrentFromProwlarr: missing apiKey');
+  const resp = await axios.get(url, {
+    responseType: 'arraybuffer',
+    timeout: 60_000,
+    headers: { 'X-Api-Key': apiKey }
+  });
+  return Buffer.from(resp.data);
+}
+
+function slug(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 80);
+}
+
+async function ensureTorrentPath({ cachePath, cache, movieTitle, attemptTitle, torrentUrl, logger = console }) {
+  if (!torrentUrl) return { cache, torrent_path: '' };
+
+  const torrentsDir = path.resolve(path.dirname(cachePath), 'torrents');
+  await fs.mkdir(torrentsDir, { recursive: true });
+
+  const buf = await downloadTorrentFromProwlarr({ url: torrentUrl, apiKey: process.env.PROWLARR_API_KEY });
+  const hash = crypto.createHash('sha1').update(buf).digest('hex').slice(0, 10);
+  const filename = `${slug(attemptTitle) || 'torrent'}-${hash}.torrent`;
+  const outPath = path.join(torrentsDir, filename);
+  await fs.writeFile(outPath, buf);
+
+  cache = patchCachedTorrent(cache, movieTitle, attemptTitle, { torrent_path: outPath });
+  await saveCache(cachePath, cache);
+  logger.log(`TORRENT_IMPORT: saved ${outPath}`);
+  return { cache, torrent_path: outPath };
 }
 
 function normalizeCodec(c) {
@@ -163,6 +206,9 @@ let cache = await loadCache(cachePath);
 
 const provider = new MockDebridProvider({ baseUrl: providerBaseUrl, apiKey: realdebridApiKey });
 
+const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const dailyLog = await initDailyLogger({ projectRoot, logger: console });
+
 let movies;
 if (movieTitlesFromArray) {
   // Read movies directly from cache using the passed array
@@ -191,9 +237,10 @@ for (const movie of movies) {
         parsedRes: String(v.resolution || ''),
         sizeGiB: Number(v.tamanho),
         magnet: (v.magnet && String(v.magnet).startsWith('magnet:')) ? String(v.magnet) : '',
+        torrent_url: v.torrent_url ? String(v.torrent_url) : '',
         torrent_path: v.torrent_path ? String(v.torrent_path) : ''
       }))
-      .filter((r) => Boolean(r.magnet) || Boolean(r.torrent_path));
+      .filter((r) => Boolean(r.magnet) || Boolean(r.torrent_path) || Boolean(r.torrent_url));
   } else {
     const q = movie.year ? `${movie.title} ${movie.year}` : movie.title;
     const releases = await limit(() => prowlarrSearch({ baseUrl, apiKey, query: q, timeoutMs: prowlarrTimeoutMs }));
@@ -259,9 +306,35 @@ for (const movie of movies) {
   });
 
   const chosen = candidates.slice(0, maxTorrents);
-  const attempts = chosen.map((r) => ({ title: r.title, magnet: r.magnet || '', torrent_path: r.torrent_path || '' }));
 
-  console.log(`Movie: ${movie.title}${movie.year ? ` (${movie.year})` : ''} :: trying ${attempts.length} magnets`);
+  // If we have Prowlarr torrent URLs (http) instead of magnets, download the .torrent files
+  // only for the chosen candidates, persist to cache, and then send via provider.sendTorrentFile.
+  const attempts = [];
+  for (const r of chosen) {
+    let torrent_path = r.torrent_path || '';
+    if (!r.magnet && !torrent_path && r.torrent_url) {
+      try {
+        const res = await ensureTorrentPath({
+          cachePath,
+          cache,
+          movieTitle: movie.title,
+          attemptTitle: r.title,
+          torrentUrl: r.torrent_url,
+          logger: console
+        });
+        cache = res.cache;
+        torrent_path = res.torrent_path;
+      } catch (e) {
+        const msg = String(e?.message || e);
+        console.log(`TORRENT_IMPORT: failed for movie="${movie.title}" attempt="${r.title}": ${msg}`);
+        await dailyLog.log(`ERROR: torrent_import movie="${movie.title}" release="${r.title}" msg=${JSON.stringify(msg)}`);
+      }
+    }
+
+    attempts.push({ title: r.title, magnet: r.magnet || '', torrent_path });
+  }
+
+  console.log(`Movie: ${movie.title}${movie.year ? ` (${movie.year})` : ''} :: trying ${attempts.length} attempts`);
 
   const res = await tryMagnetsUntilDownloaded({
     provider,
@@ -270,10 +343,12 @@ for (const movie of movies) {
     onSent: async ({ attempt, id }) => {
       cache = patchCachedTorrent(cache, movie.title, attempt.title, { sent_to_debrid: true, debrid_id: String(id) });
       await saveCache(cachePath, cache);
+      await dailyLog.log(`DEBRID_FOUND: movie="${movie.title}" release="${attempt.title}" id=${String(id)}`);
     },
     onDownloading: async ({ attempt, id }) => {
       cache = patchCachedTorrent(cache, movie.title, attempt.title, { downloading: true, sent_to_debrid: true, debrid_id: String(id) });
       await saveCache(cachePath, cache);
+      await dailyLog.log(`DEBRID_DE_MOLHO: movie="${movie.title}" release="${attempt.title}" id=${String(id)}`);
     },
     onRemoved: async ({ attempt, id }) => {
       // If we removed it from Debrid, clear the cached id/flags so we don't show phantom "sent".
@@ -361,6 +436,10 @@ for (const movie of movies) {
 
       // Only mark movie as executed after we actually downloaded something AND all required downloads succeeded.
       okToMarkExecuted = Boolean(dlRes?.okAll && dlRes?.downloadedAny);
+
+      if (okToMarkExecuted) {
+        await dailyLog.log(`DOWNLOADED: movie="${movie.title}" release="${res.attempt?.title || ''}" dest="${dlRes?.movieDestDir || destDir}"`);
+      }
     }
 
     if (okToMarkExecuted) {
@@ -371,6 +450,9 @@ for (const movie of movies) {
       cache = patchCachedTorrent(cache, movie.title, res.attempt?.title || '', { last_auto_download_error: msg });
       await saveCache(cachePath, cache);
       console.log(`AUTO_DOWNLOAD: not marking process_executed=true because ${msg}`);
+      if (autoDownload) {
+        await dailyLog.log(`ERROR: auto_download movie="${movie.title}" release="${res.attempt?.title || ''}" msg=${JSON.stringify(msg)}`);
+      }
     }
   } else {
     console.log('NO_DOWNLOADED_FOUND');

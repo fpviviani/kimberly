@@ -8,3 +8,10 @@ yarn-debug.log*
 yarn-error.log*
 memory/
 memory/*.json*
+
+# logs
+logs/*
+!logs/.gitkeep
+
+# local trash/staging
+_TRASH/

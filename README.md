@@ -9,37 +9,156 @@ A Node.js automation project that:
 5. Persists the chosen results to a JSON cache
 6. (Optional) runs a Debrid pipeline (currently implemented against a provider stub)
 
-## Requirements
+## Pré-requisitos
 
-- Node.js 18+
-- Prowlarr running (default: `http://localhost:9696`)
-- Prowlarr API key
+### Obrigatórios
 
-## Install
+- **Node.js 18+**
+- **Prowlarr** instalado e rodando (default: `http://localhost:9696`)
+  - Você precisa do **Prowlarr API key** (`PROWLARR_API_KEY`)
+- **Uma lista no Letterboxd** (URL tipo `https://boxd.it/xxxx`)
+  - você pode passar por argumento ou setar `LETTERBOXD_LIST_URL` no `.env`
+- **Conta no Real-Debrid** (pra debrid-cli/monitor e auto-download)
+  - você precisa do token em `REALDEBRID_API_KEY` e da base `REALDEBRID_URL`
+
+### Opcionais
+
+- **Plex** (pra dar refresh automático depois de baixar/importar)
+  - requer `PLEX_TOKEN` e `PLEX_SECTION_ID_FILMES`
+- **Radarr** (pra importar no Radarr depois do download/import manual)
+  - requer `RADARR_API_KEY`
+- **Bazarr** (não é usado diretamente pelo script; mas faz sentido ter se você quer legendas automáticas via Radarr/Plex)
+- **7-Zip (`7z`)** instalado no sistema
+  - só é necessário se você usa `AUTO_DOWNLOAD` e o Real-Debrid devolver arquivos `.rar` (o script extrai via `7z x`)
+
+## Instalação (passo a passo)
+
+1) Clone o repositório
 
 ```bash
-cd /home/fabio/Workspace/torrent-auto-crawlerr
-npm i
-npm link   # optional (installs the CLI commands globally)
+git clone <repo-url>
+cd torrent-auto-crawlerr
 ```
 
-## Configure
+2) Instale as dependências
 
-Create your `.env`:
+```bash
+npm i
+```
+
+3) Crie o arquivo de configuração `.env`
 
 ```bash
 cp .env.example .env
-# edit .env and set PROWLARR_API_KEY
 ```
 
+4) Edite o `.env` e configure o mínimo
+
+Obrigatório:
+- `PROWLARR_URL` (se não for o default)
+- `PROWLARR_API_KEY`
+- `LETTERBOXD_LIST_URL` (se quiser rodar o `cli.js` sem passar URL por argumento)
+
+Se você vai usar debrid:
+- `REALDEBRID_URL`
+- `REALDEBRID_API_KEY`
+
+5) (Opcional) Instalar os comandos CLI globalmente
+
+```bash
+npm link
+```
+
+Isso cria comandos como `torrent-auto-crawlerr` / `torrent-auto-crawlerr-debrid` no seu PATH.
+
+## Windows setup
+
+If you want to run this project on **Windows**:
+
+- Install **Node.js 18+**
+- Make sure **Prowlarr** is reachable and your `.env` has `PROWLARR_URL` + `PROWLARR_API_KEY`
+- Set Windows paths in `.env` (examples):
+  - `AUTO_DOWNLOAD_DEST_DIR=C:\\Videos\\Movies`
+  - `RADARR_ROOT_FOLDER_PATH=C:\\Videos\\Movies`
+- For `.rar` extraction during auto-download:
+  - Install **7-Zip**
+  - Either add `7z.exe` to your **PATH**, or set `SEVEN_ZIP_PATH` in `.env`, e.g.:
+    - `SEVEN_ZIP_PATH=C:\\Program Files\\7-Zip\\7z.exe`
+
+Notes:
+- `.zip` extraction does **not** require 7-Zip (handled in Node).
+
+## Configure
+
+Your `.env` was created in the installation steps above.
+
+At minimum, make sure you set `PROWLARR_API_KEY`.
+
 ## Run
+
+## (Optional) Scheduled runs (Linux cron / Windows Task Scheduler)
+
+If you want to run this automatically every **X minutes**, you can schedule `cli.js` (and optionally `debrid-monitor.js`).
+
+> Tip: prefer scheduling **only what you need**. `cli.js` + `debrid-cli.js` can add a lot of torrents to debrid; `debrid-monitor.js` is usually the safe one to run periodically.
+
+### Linux (cron)
+
+1) Open your crontab:
+
+```bash
+crontab -e
+```
+
+2) Add entries (example: every 30 minutes):
+
+```cron
+*/30 * * * * cd <project-root> && /usr/bin/env node src/cli.js >> logs/cli.log 2>&1
+*/30 * * * * cd <project-root> && /usr/bin/env node src/debrid-monitor.js >> logs/monitor.log 2>&1
+```
+
+Notes:
+- Use an **absolute project path** for `<project-root>`.
+- Make sure `.env` is configured (the scripts load it automatically).
+- Create the logs folder once:
+
+```bash
+mkdir -p <project-root>/logs
+```
+
+If you want a different interval, replace `*/30` with `*/5` (every 5 min), `*/10`, etc.
+
+### Windows (Task Scheduler)
+
+1) Open **Task Scheduler** → **Create Task…**
+2) Tab **Triggers** → **New…** → set “Daily” and “Repeat task every: X minutes”
+3) Tab **Actions** → **New…**
+   - **Program/script:** `node` (or the full path to `node.exe`)
+   - **Add arguments:** `src\cli.js`
+   - **Start in:** `<project-root>`
+4) Repeat for the monitor:
+   - **Add arguments:** `src\debrid-monitor.js`
+
+Notes:
+- Ensure your `.env` exists in `<project-root>`.
+- If Windows can’t find `node`, use the full path (e.g. `C:\Program Files\nodejs\node.exe`).
 
 ### Prowlarr CLI (cache builder)
 
 **Mode A: Letterboxd list URL**
 
 ```bash
-node src/cli.js "https://boxd.it/SnAYa"
+node src/cli.js "https://boxd.it/xxxx"
+```
+
+**Mode A (fallback): use `LETTERBOXD_LIST_URL` from `.env`**
+
+```bash
+# .env
+LETTERBOXD_LIST_URL=https://boxd.it/xxxx
+
+# run without args
+node src/cli.js
 ```
 
 **Mode B: explicit movies array** (JSON array; each item is `"name - year"`)
@@ -55,19 +174,29 @@ Output: a JSON array with movie titles from the cache where `process_executed !=
 Run using the Letterboxd list URL:
 
 ```bash
-node src/debrid-cli.js "https://boxd.it/SnAYa"
+node src/debrid-cli.js "https://boxd.it/xxxx"
 ```
 
 Or pipe the pending movies array from `cli.js`:
 
 ```bash
-node src/cli.js "https://boxd.it/SnAYa" | node src/debrid-cli.js
+node src/cli.js "https://boxd.it/xxxx" | node src/debrid-cli.js
 ```
 
 ### Debrid monitor
 
 ```bash
 node src/debrid-monitor.js
+```
+
+### Manual import to Radarr (existing folder)
+
+If you downloaded a movie manually and created a folder under your library path (e.g. `/path/to/Movies/<Movie Folder>` or `C:\\Videos\\Movies\\<Movie Folder>`), you can ask this script to find the folder and add it to Radarr. It will also trigger a Plex refresh for the Movies section.
+
+```bash
+node src/manual-import.js "Movie Name - 1999"
+# or without year:
+node src/manual-import.js "Movie Name"
 ```
 
 ## Useful environment variables
@@ -131,7 +260,7 @@ Folder naming is controlled by `DIR_NAME_MOVIE_ONLY`:
 - `RADARR_BASE_URL` (default `http://127.0.0.1:7878`)
 - `RADARR_API_KEY`
 - `RADARR_QUALITY_PROFILE_ID` (default `7`)
-- `RADARR_ROOT_FOLDER_PATH` (default `/home/fabio/Vídeos/Filmes`)
+- `RADARR_ROOT_FOLDER_PATH` (example Linux: `/path/to/Movies`, Windows: `C:\\Videos\\Movies`)
 
 Stub file:
 
@@ -165,13 +294,13 @@ Command: `torrent-auto-crawlerr-download`
 
 ```bash
 # Download a video
- torrent-auto-crawlerr-download --url "https://example.com/video.mkv" --dest "/home/fabio/Videos"
+ torrent-auto-crawlerr-download --url "https://example.com/video.mkv" --dest "/path/to/Downloads"
 
 # Download a .zip and extract to destination
- torrent-auto-crawlerr-download --url "https://example.com/subs.zip" --dest "/home/fabio/Downloads" --unzip
+ torrent-auto-crawlerr-download --url "https://example.com/subs.zip" --dest "/path/to/Downloads" --unzip
 
 # Extract and delete the .zip
- torrent-auto-crawlerr-download --url "https://example.com/subs.zip" --dest "/home/fabio/Downloads" --unzip --delete-zip-after
+ torrent-auto-crawlerr-download --url "https://example.com/subs.zip" --dest "/path/to/Downloads" --unzip --delete-zip-after
 ```
 
 ## Import a .torrent and fill torrent_path

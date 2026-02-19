@@ -8,6 +8,7 @@ import { defaultCachePath, loadCache, saveCache, getCachedMovie, upsertCachedMov
 import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { initDailyLogger } from './logging.js';
 
 // STUB: if you implement torrent downloading, uncomment the import below.
 import { downloadTorrentStub } from './torrent-download.stub.js';
@@ -208,11 +209,16 @@ const metadataTimeoutMs = Number(process.env.METADATA_TIMEOUT_MS || '120000');
 const metadataConcurrency = Number(process.env.METADATA_CONCURRENCY || '5');
 const hdOnly = (process.env.HD_ONLY || '0') === '1' || (process.env.HD_ONLY || '').toLowerCase() === 'true';
 
+// Allow list URL fallback from env
+if (!listUrl && !moviesFromArg) {
+  listUrl = String(process.env.LETTERBOXD_LIST_URL || process.env.LETTERBOXD_LIST || '').trim();
+}
+
 if (!listUrl && !moviesFromArg) {
   console.error('Usage:');
   console.error('  torrent-auto-crawlerr <letterboxd_list_url>');
   console.error('  torrent-auto-crawlerr --movies "[\\"Title - 1999\\", \\"Other - 2001\\"]"');
-  console.error('Env: PROWLARR_URL (default http://localhost:9696), PROWLARR_API_KEY (required), MAX_GIB (default 10)');
+  console.error('Env: LETTERBOXD_LIST_URL (fallback), PROWLARR_URL (default http://localhost:9696), PROWLARR_API_KEY (required), MAX_GIB (default 10)');
   process.exit(2);
 }
 
@@ -227,6 +233,9 @@ const concurrency = Number(process.env.CONCURRENCY || '3');
 const limit = pLimit(concurrency);
 
 const prowlarrTimeoutMs = Number(process.env.PROWLARR_TIMEOUT_MS || '30000');
+
+const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const dailyLog = await initDailyLogger({ projectRoot, logger: console });
 
 const cachePath = process.env.CACHE_FILE ? process.env.CACHE_FILE : defaultCachePath();
 let cache = await loadCache(cachePath);
@@ -298,6 +307,10 @@ await Promise.all(
       const cached = getCachedMovie(cache, movie.title);
       const cachedTorrentCount = cached?.torrents ? Object.keys(cached.torrents).length : 0;
 
+      if (!cached) {
+        await dailyLog.log(`NEW_MOVIE: ${movie.title}${movie.year ? ` (${movie.year})` : ''}`);
+      }
+
       // If it is cached BUT empty (0 torrents), we should retry the search even without REWRITE_CACHE.
       // This can happen when the first pass failed / query was too generic (e.g. Toll/Pedágio).
       if (cached && !rewriteCache && cachedTorrentCount > 0) {
@@ -340,6 +353,8 @@ await Promise.all(
         queries.push(`Pedagio ${movie.year}`);
       }
 
+
+
       let releases = [];
       try {
         const seen = new Set();
@@ -353,7 +368,9 @@ await Promise.all(
           }
         }
       } catch (e) {
-        results.push({ movie, error: String(e?.message || e) });
+        const msg = String(e?.message || e);
+        await dailyLog.log(`ERROR: cli movie="${movie.title}" msg=${JSON.stringify(msg)}`);
+        results.push({ movie, error: msg });
         return;
       }
 
@@ -378,11 +395,20 @@ await Promise.all(
         titleMatchers.push('Pedagio');
       }
 
+      // Per-movie size overrides (some TV docs are < 1 GiB).
+      let movieMinBytes = minBytes;
+      let movieMaxBytes = maxBytes;
+      if (String(movie.title || '').trim().toLowerCase() === 'john ford & monument valley') {
+        // Allow smaller releases for this TV documentary.
+        movieMinBytes = 0.05 * (1024 ** 3); // ~50 MiB
+      }
+
       const filtered = (await Promise.all(
         releases
-          .filter((r) => typeof r?.size === 'number' && r.size >= minBytes && r.size <= maxBytes)
+          .filter((r) => typeof r?.size === 'number' && r.size >= movieMinBytes && r.size <= movieMaxBytes)
           .map(async (r) => {
             const parsed = parseReleaseTitle(r.title);
+            const pickedUrl = pickMagnet(r);
             const obj = {
               title: r.title,
               parsedName: parsed.name,
@@ -395,7 +421,8 @@ await Promise.all(
               seeders: r.seeders,
               leechers: r.leechers,
               publishDate: r.publishDate,
-              downloadUrl: pickMagnet(r)
+              magnet: (typeof pickedUrl === 'string' && pickedUrl.startsWith('magnet:')) ? pickedUrl : '',
+              torrentUrl: (typeof pickedUrl === 'string' && /^https?:\/\//i.test(pickedUrl) && !pickedUrl.startsWith('magnet:')) ? pickedUrl : ''
             };
 
             // STUB (commented): if this release has no magnet, this is where you would download a .torrent
@@ -408,7 +435,7 @@ await Promise.all(
             return obj;
           })
       ))
-        .filter((r) => r && r.downloadUrl)
+        .filter((r) => r && (r.magnet || r.torrentUrl))
         .filter((r) => (englishTitleOnly ? titleMatchers.some((t) => releaseMatchesMovieTitle(t, r.title)) : true))
         .filter((r) => {
           if (!excludeTermList.length) return true;
@@ -524,8 +551,8 @@ await Promise.all(
           codec: (m.parsedCodec || '').toUpperCase(),
           resolution: (m.parsedRes || '').toUpperCase(),
           tamanho: m.sizeGiB,
-          magnet: typeof m.downloadUrl === 'string' && m.downloadUrl.startsWith('magnet:') ? m.downloadUrl : '',
-          torrent_url: typeof m.downloadUrl === 'string' && !m.downloadUrl.startsWith('magnet:') ? m.downloadUrl : '',
+          magnet: m.magnet || '',
+          torrent_url: m.torrentUrl || '',
           torrent_path: m.torrent_path || '',
           // defaults for debrid flags
           sent_to_debrid: false,

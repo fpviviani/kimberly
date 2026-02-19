@@ -17,8 +17,8 @@ function usage() {
   console.log('  After unpack, any .srt found inside subfolders is moved up into --dest');
   console.log('');
   console.log('Examples:');
-  console.log('  torrent-auto-crawlerr-download --url "https://example.com/video.mp4" --dest "/home/fabio/Videos"');
-  console.log('  torrent-auto-crawlerr-download --url "https://example.com/subs.rar" --dest "/home/fabio/Downloads" --unpack --delete-archive-after');
+  console.log('  torrent-auto-crawlerr-download --url "https://example.com/video.mp4" --dest "/path/to/Downloads"');
+  console.log('  torrent-auto-crawlerr-download --url "https://example.com/subs.rar" --dest "/path/to/Downloads" --unpack --delete-archive-after');
   process.exit(2);
 }
 
@@ -64,10 +64,45 @@ async function unzipFile(zipPath, destDir) {
   await pipeline((await fs.open(zipPath, 'r')).createReadStream(), unzipper.Extract({ path: destDir }));
 }
 
+function isWindows() {
+  return process.platform === 'win32';
+}
+
+async function fileExists(p) {
+  return await fs
+    .stat(p)
+    .then(() => true)
+    .catch(() => false);
+}
+
+async function find7zBinary() {
+  const envPath = String(process.env.SEVEN_ZIP_PATH || '').trim();
+  if (envPath) return envPath;
+
+  // If 7z is in PATH, spawning "7z"/"7z.exe" will work.
+  // For Windows local installs, also try common locations.
+  if (!isWindows()) return '7z';
+
+  const candidates = [
+    '7z',
+    '7z.exe',
+    'C:\\Program Files\\7-Zip\\7z.exe',
+    'C:\\Program Files (x86)\\7-Zip\\7z.exe'
+  ];
+
+  for (const c of candidates) {
+    if (c === '7z' || c === '7z.exe') return c;
+    if (await fileExists(c)) return c;
+  }
+
+  return '7z';
+}
+
 async function run7zExtract(archivePath, destDir) {
   await ensureDir(destDir);
+  const bin = await find7zBinary();
   await new Promise((resolve, reject) => {
-    const child = spawn('7z', ['x', '-y', `-o${destDir}`, archivePath], { stdio: 'inherit' });
+    const child = spawn(bin, ['x', '-y', `-o${destDir}`, archivePath], { stdio: 'inherit' });
     child.on('error', reject);
     child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`7z exited ${code}`))));
   });

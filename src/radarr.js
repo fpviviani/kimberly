@@ -66,9 +66,9 @@ export async function radarrAddMovieIfMissing({
   radarrBaseUrl = process.env.RADARR_BASE_URL || 'http://127.0.0.1:7878',
   radarrApiKey = process.env.RADARR_API_KEY,
   radarrQualityProfileId = Number(process.env.RADARR_QUALITY_PROFILE_ID || '7'),
-  radarrRootFolderPath = process.env.RADARR_ROOT_FOLDER_PATH || '/home/fabio/Vídeos/Filmes',
+  radarrRootFolderPath = process.env.RADARR_ROOT_FOLDER_PATH || process.env.AUTO_DOWNLOAD_DEST_DIR || '',
   logger = console
-}) {
+}) { 
   if (!radarrApiKey) throw new Error('Missing env RADARR_API_KEY');
   if (!title) throw new Error('radarrAddMovieIfMissing: missing title');
   if (!moviePath) throw new Error('radarrAddMovieIfMissing: missing moviePath');
@@ -102,12 +102,16 @@ export async function radarrAddMovieIfMissing({
   }
 
   // 3) Add movie (library import only)
+  // Radarr still requires rootFolderPath in the payload.
+  // If not explicitly set, infer from the moviePath's parent folder.
+  const rootFolderPath = radarrRootFolderPath ? String(radarrRootFolderPath) : String(moviePath).replace(/[\\/][^\\/]+$/, '');
+
   const payload = {
     title: parsedTitle,
     year: parsedYear,
     tmdbId: Number(tmdbId),
     qualityProfileId: Number(radarrQualityProfileId),
-    rootFolderPath: String(radarrRootFolderPath),
+    rootFolderPath,
     path: String(moviePath),
     monitored: false,
     addOptions: {
@@ -130,6 +134,41 @@ export async function radarrAddMovieIfMissing({
 
   logger.log(`RADARR: added tmdbId=${tmdbId} title="${parsedTitle}" path="${moviePath}"`);
   return { ok: true, alreadyExisted: false, tmdbId, radarrId: created?.id };
+}
+
+export async function radarrRemoveMovieByTmdbId({
+  tmdbId,
+  radarrBaseUrl = process.env.RADARR_BASE_URL || 'http://127.0.0.1:7878',
+  radarrApiKey = process.env.RADARR_API_KEY,
+  deleteFiles = false,
+  addImportListExclusion = false,
+  logger = console
+}) {
+  if (!radarrApiKey) throw new Error('Missing env RADARR_API_KEY');
+  if (!tmdbId) throw new Error('radarrRemoveMovieByTmdbId: missing tmdbId');
+
+  const api = axios.create({
+    baseURL: base(radarrBaseUrl),
+    timeout: 30_000,
+    params: { apikey: radarrApiKey }
+  });
+
+  const movies = (await api.get('/api/v3/movie')).data;
+  const m = Array.isArray(movies) ? movies.find((x) => Number(x?.tmdbId) === Number(tmdbId)) : null;
+  if (!m?.id) {
+    logger.log(`RADARR: remove skipped (not found) tmdbId=${tmdbId}`);
+    return { ok: true, removed: false };
+  }
+
+  await api.delete(`/api/v3/movie/${encodeURIComponent(m.id)}`, {
+    params: {
+      deleteFiles: Boolean(deleteFiles),
+      addImportListExclusion: Boolean(addImportListExclusion)
+    }
+  });
+
+  logger.log(`RADARR: removed tmdbId=${tmdbId} radarrId=${m.id} title="${m.title || ''}" deleteFiles=${Boolean(deleteFiles)}`);
+  return { ok: true, removed: true, radarrId: m.id };
 }
 
 export function radarrEnabled() {
