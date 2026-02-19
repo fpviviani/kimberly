@@ -65,12 +65,12 @@ async function axiosWith429Retry(reqFn, { url, maxRetries = 3, baseDelayMs = 300
 
 const retryBaseDelayMs = Number(process.env.DEBRID_RETRY_DELAY_MS || '3000');
 
-export class MockDebridProvider {
+export class DebridProvider {
   /**
    * @param {{ baseUrl: string, apiKey?: string }} opts
    */
   constructor({ baseUrl, apiKey }) {
-    if (!baseUrl) throw new Error('MockDebridProvider: missing baseUrl');
+    if (!baseUrl) throw new Error('DebridProvider: missing baseUrl');
     this.baseUrl = base(baseUrl);
     this.apiKey = apiKey ? String(apiKey) : '';
   }

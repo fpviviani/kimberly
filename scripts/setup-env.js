@@ -97,10 +97,6 @@ const HELP = {
     pt: 'Token/API key do Real-Debrid.',
     en: 'Real-Debrid token/API key.'
   },
-  MOCK_DEBRID_BASE_URL: {
-    pt: 'URL do provider mock (só pra testes).',
-    en: 'Mock provider URL (tests only).'
-  },
   DEBRID_VERBOSE: {
     pt: 'Logs detalhados do fluxo de debrid.',
     en: 'Verbose logging for the debrid flow.'

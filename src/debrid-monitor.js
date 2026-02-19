@@ -1,27 +1,25 @@
 #!/usr/bin/env node
 import 'dotenv/config';
 import { defaultCachePath, loadCache, saveCache, getCachedMovie, patchCachedTorrent, patchMovie } from './cache.js';
-import { MockDebridProvider } from './providers/mockDebrid.js';
+import { DebridProvider } from './providers/debrid.js';
 import { runAutoDownload } from './auto-download.js';
 import path from 'node:path';
 import { initDailyLogger } from './logging.js';
 
 function usage() {
   console.log('Usage: torrent-auto-crawlerr-debrid-monitor');
-  console.log('Env: REALDEBRID_URL (or MOCK_DEBRID_BASE_URL) required');
+  console.log('Env: REALDEBRID_URL required');
   process.exit(2);
 }
 
-const realdebridUrl = process.env.REALDEBRID_URL || process.env.realdebrid_url || '';
+const providerBaseUrl = process.env.REALDEBRID_URL || process.env.realdebrid_url || '';
 const realdebridApiKey = process.env.REALDEBRID_API_KEY || process.env.realdebrid_api_key || '';
-const mockBase = process.env.MOCK_DEBRID_BASE_URL || '';
-const providerBaseUrl = realdebridUrl || mockBase;
 if (!providerBaseUrl) usage();
 
 const cachePath = process.env.CACHE_FILE ? process.env.CACHE_FILE : defaultCachePath();
 let cache = await loadCache(cachePath);
 
-const provider = new MockDebridProvider({ baseUrl: providerBaseUrl, apiKey: realdebridApiKey });
+const provider = new DebridProvider({ baseUrl: providerBaseUrl, apiKey: realdebridApiKey });
 
 const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const dailyLog = await initDailyLogger({ projectRoot, logger: console });

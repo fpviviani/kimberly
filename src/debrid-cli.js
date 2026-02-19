@@ -3,7 +3,7 @@ import 'dotenv/config';
 import pLimit from 'p-limit';
 import { fetchLetterboxdListMovies } from './letterboxd.js';
 import { prowlarrSearch } from './prowlarr.js';
-import { MockDebridProvider } from './providers/mockDebrid.js';
+import { DebridProvider } from './providers/debrid.js';
 import { tryMagnetsUntilDownloaded } from './debrid-engine.js';
 import { defaultCachePath, loadCache, saveCache, getCachedMovie, upsertCachedMovie, patchCachedTorrent, patchMovie } from './cache.js';
 import { spawn } from 'node:child_process'
@@ -178,16 +178,11 @@ if (!apiKey) {
   process.exit(2);
 }
 
-// Provider base URL
-// - REALDEBRID_URL: for future Real-Debrid integration (currently still using the mock provider class)
-// - MOCK_DEBRID_BASE_URL: legacy/mock-only setting
-const realdebridUrl = process.env.REALDEBRID_URL || process.env.realdebrid_url || '';
+const providerBaseUrl = process.env.REALDEBRID_URL || process.env.realdebrid_url || '';
 const realdebridApiKey = process.env.REALDEBRID_API_KEY || process.env.realdebrid_api_key || '';
-const mockBase = process.env.MOCK_DEBRID_BASE_URL || '';
 
-const providerBaseUrl = realdebridUrl || mockBase;
 if (!providerBaseUrl) {
-  console.error('Missing env REALDEBRID_URL (or MOCK_DEBRID_BASE_URL for the mock provider)');
+  console.error('Missing env REALDEBRID_URL');
   process.exit(2);
 }
 
@@ -204,7 +199,7 @@ const prowlarrTimeoutMs = Number(process.env.PROWLARR_TIMEOUT_MS || '30000');
 const cachePath = process.env.CACHE_FILE ? process.env.CACHE_FILE : defaultCachePath();
 let cache = await loadCache(cachePath);
 
-const provider = new MockDebridProvider({ baseUrl: providerBaseUrl, apiKey: realdebridApiKey });
+const provider = new DebridProvider({ baseUrl: providerBaseUrl, apiKey: realdebridApiKey });
 
 const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const dailyLog = await initDailyLogger({ projectRoot, logger: console });

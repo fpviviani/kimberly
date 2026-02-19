@@ -338,13 +338,11 @@ Comando: `torrent-auto-crawlerr-torrent-import`
   - Se um torrent vira `queued/downloading` após seleção de arquivos, a gente **deixa no Debrid** e o monitor finaliza depois.
   - Ao remover um torrent do Debrid, limpa `sent_to_debrid/debrid_id` no cache (evita “phantom sent”).
 
-## Provider base URL + API key (RealDebrid vs Mock)
+## Provider base URL + API key (Real-Debrid)
 
-Hoje o `debrid-cli.js` ainda instancia `MockDebridProvider`, mas essas env vars já configuram base URL + key:
 
 - `REALDEBRID_URL`: se setada, tem prioridade e vira a base URL do provider
 - `REALDEBRID_API_KEY`: enviada como `Authorization: Bearer ...`
-- `MOCK_DEBRID_BASE_URL`: fallback quando `REALDEBRID_URL` estiver vazia
 
 ## Prioridade de qualidade (sorting)
 
