@@ -5,6 +5,8 @@
   "scripts": {
     "test": "node -c src/cli.js >/dev/null || true",
     "setup": "node scripts/setup-env.js",
+    "cron:linux": "node scripts/cron-linux.js",
+    "cron:windows": "node scripts/cron-windows.js",
     "start": "node src/cli.js",
     "dev": "node src/cli.js"
   },

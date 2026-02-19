@@ -106,6 +106,18 @@ No mínimo, garanta que você setou `PROWLARR_API_KEY`.
 
 ## (Opcional) Execução agendada (cron no Linux / Task Scheduler no Windows)
 
+Você pode criar o agendamento automaticamente com:
+
+```bash
+npm run cron:linux
+# ou
+npm run cron:windows
+```
+
+Isso usa as variáveis do `.env`:
+- `CRON_CLI_EVERY_MIN` (default 20)
+- `CRON_MONITOR_AFTER_CLI_MIN` (default 10)
+
 Se você quiser rodar isso automaticamente a cada **X minutos**, você pode agendar o `cli.js` (e opcionalmente o `debrid-monitor.js`).
 
 > Dica: agende apenas o que você precisa. `cli.js` + `debrid-cli.js` podem encher o Debrid com torrents; `debrid-monitor.js` costuma ser o mais seguro para rodar periodicamente.

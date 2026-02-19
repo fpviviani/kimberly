@@ -106,6 +106,18 @@ At minimum, make sure you set `PROWLARR_API_KEY`.
 
 ## (Optional) Scheduled runs (Linux cron / Windows Task Scheduler)
 
+You can create the schedule automatically with:
+
+```bash
+npm run cron:linux
+# or
+npm run cron:windows
+```
+
+It uses these `.env` variables:
+- `CRON_CLI_EVERY_MIN` (default 20)
+- `CRON_MONITOR_AFTER_CLI_MIN` (default 10)
+
 If you want to run this automatically every **X minutes**, you can schedule `cli.js` (and optionally `debrid-monitor.js`).
 
 > Tip: prefer scheduling **only what you need**. `cli.js` + `debrid-cli.js` can add many torrents to your debrid; `debrid-monitor.js` is usually the safe one to run periodically.

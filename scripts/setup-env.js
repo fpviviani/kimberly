@@ -4,6 +4,7 @@ import path from 'node:path';
 import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import axios from 'axios';
+import { spawn } from 'node:child_process';
 
 function isWindows() {
   return process.platform === 'win32';
@@ -76,7 +77,9 @@ function tFactory(lang) {
     testing: isPT ? 'Testando conexões...' : 'Testing connectivity...',
     testOk: 'OK',
     testFail: isPT ? 'FALHOU' : 'FAILED',
-    skipped: isPT ? 'pulou (não configurado)' : 'skipped (not configured)'
+    skipped: isPT ? 'pulou (não configurado)' : 'skipped (not configured)',
+    askCron: isPT ? 'Quer criar o agendamento automático (cron/tasks) agora? (s/N)' : 'Create scheduled tasks (cron) now? (y/N)',
+    askCronOs: isPT ? 'Qual sistema? 1) Linux (cron)  2) Windows (schtasks)' : 'Which OS? 1) Linux (cron)  2) Windows (schtasks)'
   };
 }
 
@@ -228,6 +231,14 @@ const HELP = {
   LOGS_RETENTION_DAYS: {
     pt: 'Quantos dias manter de logs (contando hoje).',
     en: 'How many log days to keep (counting today).'
+  },
+  CRON_CLI_EVERY_MIN: {
+    pt: 'Intervalo (min) para rodar o cli.js via cron/task scheduler.',
+    en: 'Interval (min) to run cli.js via cron/task scheduler.'
+  },
+  CRON_MONITOR_AFTER_CLI_MIN: {
+    pt: 'Quantos minutos após o cli.js rodar para rodar o debrid-monitor.js.',
+    en: 'How many minutes after cli.js to run debrid-monitor.js.'
   },
   OUTPUT_JSON: {
     pt: 'Se 1, imprime JSON detalhado ao final (quando suportado).',
@@ -416,6 +427,20 @@ async function main() {
     const yes = tr.lang === 'pt' ? (a === 's' || a === 'sim' || a === 'y' || a === 'yes') : (a === 'y' || a === 'yes' || a === 's' || a === 'sim');
     if (yes) {
       await testConnections({ answers, tr, logger: console });
+    }
+
+    const cronAns = await rl.question(`\n${tr.askCron} `);
+    const ca = String(cronAns || '').trim().toLowerCase();
+    const cronYes = tr.lang === 'pt' ? (ca === 's' || ca === 'sim' || ca === 'y' || ca === 'yes') : (ca === 'y' || ca === 'yes' || ca === 's' || ca === 'sim');
+    if (cronYes) {
+      const osAns = await rl.question(`${tr.askCronOs}\n> `);
+      const os = String(osAns || '').trim();
+      const script = os === '2' ? './cron-windows.js' : './cron-linux.js';
+      await new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, [new URL(script, import.meta.url).pathname], { stdio: 'inherit', env: { ...process.env, ...answers } });
+        child.on('error', reject);
+        child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`cron script exited ${code}`))));
+      });
     }
   } finally {
     rl.close();
