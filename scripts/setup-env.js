@@ -137,18 +137,6 @@ const HELP = {
     pt: 'Bucket (GiB) para deduplicação por tamanho.',
     en: 'Size bucket (GiB) for de-duplication.'
   },
-  INSPECT_METADATA: {
-    pt: 'Se true, inspeciona metadados do torrent (vídeo+legenda) antes de aceitar.',
-    en: 'If true, inspect torrent metadata (video+subs) before accepting.'
-  },
-  METADATA_TIMEOUT_MS: {
-    pt: 'Timeout (ms) da inspeção de metadados.',
-    en: 'Metadata inspection timeout (ms).'
-  },
-  METADATA_CONCURRENCY: {
-    pt: 'Quantas inspeções de metadados em paralelo.',
-    en: 'How many metadata inspections in parallel.'
-  },
   CONCURRENCY: {
     pt: 'Quantas buscas no Prowlarr em paralelo.',
     en: 'How many Prowlarr searches in parallel.'

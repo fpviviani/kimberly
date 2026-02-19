@@ -222,7 +222,6 @@ Filtragem / saída:
 - `HD_ONLY`: se ligado, mantém só 1080p/2160p quando houver HD
 - `ENGLISH_TITLE_ONLY`: match por tokens do título do Letterboxd
 - `EXCLUDE_TERMS`: termos separados por vírgula para excluir
-- `INSPECT_METADATA`: se ligado, só aceita releases com vídeo + `.srt`
 
 ## Formato do cache (flags de Debrid)
 

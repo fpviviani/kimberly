@@ -221,7 +221,6 @@ Filtering / output:
 - `HD_ONLY`: if enabled, keep only 1080p/2160p when any exist
 - `ENGLISH_TITLE_ONLY`: token-based title match against the Letterboxd title
 - `EXCLUDE_TERMS`: comma-separated terms to exclude
-- `INSPECT_METADATA`: if enabled, only accept releases that contain video + `.srt`
 
 ## Cache format (Debrid flags)
 

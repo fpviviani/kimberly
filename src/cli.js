@@ -3,7 +3,6 @@ import 'dotenv/config';
 import pLimit from 'p-limit';
 import { fetchLetterboxdListMovies } from './letterboxd.js';
 import { prowlarrSearch } from './prowlarr.js';
-import { inspectReleaseMetadata } from './metadata.js';
 import { defaultCachePath, loadCache, saveCache, getCachedMovie, upsertCachedMovie } from './cache.js';
 import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
@@ -204,9 +203,6 @@ const excludeTermList = excludeTerms
   : [];
 // Used only for de-dup. Bucket in GiB (e.g. 0.1 groups 1.23GiB and 1.31GiB separately; 0.25 groups them together)
 const dedupeSizeBucketGiB = Number(process.env.DEDUPE_SIZE_BUCKET_GIB || '0.1');
-const inspectMetadata = (process.env.INSPECT_METADATA || '0') === '1' || (process.env.INSPECT_METADATA || '').toLowerCase() === 'true';
-const metadataTimeoutMs = Number(process.env.METADATA_TIMEOUT_MS || '120000');
-const metadataConcurrency = Number(process.env.METADATA_CONCURRENCY || '5');
 const hdOnly = (process.env.HD_ONLY || '0') === '1' || (process.env.HD_ONLY || '').toLowerCase() === 'true';
 
 // Allow list URL fallback from env
@@ -472,25 +468,7 @@ await Promise.all(
         deduped.push(rel);
       }
 
-      // Optional: inspect torrent metadata and keep only releases that contain
-      // at least one video file (.mkv/.mp4) and at least one subtitle (.srt)
       let finalMatches = deduped;
-      if (inspectMetadata) {
-        const metaLimit = pLimit(metadataConcurrency);
-        const inspectedFlags = await Promise.all(
-          deduped.map((rel) =>
-            metaLimit(async () => {
-              const meta = await inspectReleaseMetadata({
-                downloadUrl: rel.downloadUrl,
-                apiKey,
-                timeoutMs: metadataTimeoutMs
-              });
-              return { rel, ok: Boolean(meta?.ok) };
-            })
-          )
-        );
-        finalMatches = inspectedFlags.filter((x) => x.ok).map((x) => x.rel);
-      }
 
       // If HD_ONLY is enabled: return ONLY 1080p/2160p releases when any exist.
       // If none exist, fall back to the pre-filter list.
