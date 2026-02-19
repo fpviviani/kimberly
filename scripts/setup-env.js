@@ -1,0 +1,444 @@
+#!/usr/bin/env node
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import readline from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
+import axios from 'axios';
+
+function isWindows() {
+  return process.platform === 'win32';
+}
+
+async function exists(p) {
+  return await fs
+    .stat(p)
+    .then(() => true)
+    .catch(() => false);
+}
+
+function parseEnvFile(text) {
+  const out = {};
+  const lines = String(text || '').split(/\r?\n/);
+  for (const line of lines) {
+    const l = line.trim();
+    if (!l) continue;
+    if (l.startsWith('#')) continue;
+    const idx = l.indexOf('=');
+    if (idx === -1) continue;
+    const k = l.slice(0, idx).trim();
+    const v = l.slice(idx + 1); // keep raw (no trim)
+    if (!k) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+function extractVarsFromExample(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  const vars = [];
+
+  for (const line of lines) {
+    const trimmed = String(line).trim();
+    const m = trimmed.match(/^([A-Z0-9_]+)=(.*)$/);
+    if (m) {
+      const key = m[1];
+      const def = m[2] ?? '';
+      vars.push({ key, def });
+    }
+  }
+
+  return vars;
+}
+
+function tFactory(lang) {
+  const isPT = lang === 'pt';
+  return {
+    lang,
+    title: isPT ? 'Assistente de configuração do .env' : '.env setup wizard',
+    chooseLang: 'Choose language / Escolha o idioma:',
+    langOptions: '1) Português  2) English',
+    invalid: isPT ? 'Opção inválida.' : 'Invalid option.',
+    foundExisting: isPT ? 'Já existe um .env. Como você quer proceder?' : 'A .env file already exists. What do you want to do?',
+    existingOptions: isPT
+      ? '1) Sobrescrever (recomendo se você quer refazer tudo)\n2) Atualizar (usar valores atuais como default e re-perguntar tudo)\n3) Cancelar'
+      : '1) Overwrite (recommended if you want to redo everything)\n2) Update (use current values as defaults and re-ask everything)\n3) Cancel',
+    cancelled: isPT ? 'Cancelado.' : 'Cancelled.',
+    explainEnter: isPT
+      ? 'Dica: aperte ENTER para aceitar o valor default mostrado entre [colchetes].'
+      : 'Tip: press ENTER to accept the default value shown in [brackets].',
+    varPrompt: isPT ? 'Valor' : 'Value',
+    writing: isPT ? 'Escrevendo .env...' : 'Writing .env...',
+    done: isPT ? 'Pronto! .env atualizado.' : 'Done! .env updated.',
+    nextSteps: isPT
+      ? 'Próximos passos: rode o CLI (ex.: node src/cli.js) e veja se conecta no Prowlarr.'
+      : 'Next steps: run the CLI (e.g. node src/cli.js) and check if it can reach Prowlarr.',
+    askTests: isPT ? 'Quer rodar um teste de conexão agora? (s/N)' : 'Run a connectivity test now? (y/N)',
+    testing: isPT ? 'Testando conexões...' : 'Testing connectivity...',
+    testOk: 'OK',
+    testFail: isPT ? 'FALHOU' : 'FAILED',
+    skipped: isPT ? 'pulou (não configurado)' : 'skipped (not configured)'
+  };
+}
+
+const HELP = {
+  PROWLARR_URL: {
+    pt: 'URL do Prowlarr (ex.: http://localhost:9696).',
+    en: 'Prowlarr base URL (e.g. http://localhost:9696).'
+  },
+  PROWLARR_API_KEY: {
+    pt: 'API key do Prowlarr (Settings → General).',
+    en: 'Prowlarr API key (Settings → General).'
+  },
+  REALDEBRID_URL: {
+    pt: 'Base URL da API do Real-Debrid (default já funciona).',
+    en: 'Real-Debrid API base URL (default should work).'
+  },
+  REALDEBRID_API_KEY: {
+    pt: 'Token/API key do Real-Debrid.',
+    en: 'Real-Debrid token/API key.'
+  },
+  MOCK_DEBRID_BASE_URL: {
+    pt: 'URL do provider mock (só pra testes).',
+    en: 'Mock provider URL (tests only).'
+  },
+  DEBRID_VERBOSE: {
+    pt: 'Logs detalhados do fluxo de debrid.',
+    en: 'Verbose logging for the debrid flow.'
+  },
+  DEBRID_RETRY_DELAY_MS: {
+    pt: 'Delay base (ms) para retry quando tomar 429 (rate limit).',
+    en: 'Base retry delay (ms) on HTTP 429 rate limit.'
+  },
+  MIN_GIB: {
+    pt: 'Tamanho mínimo (GiB) do release (filtra coisas muito pequenas).',
+    en: 'Minimum release size (GiB).'
+  },
+  MAX_GIB: {
+    pt: 'Tamanho máximo (GiB) do release.',
+    en: 'Maximum release size (GiB).'
+  },
+  MAX_TORRENTS: {
+    pt: 'Máximo de releases mantidos por filme no cache.',
+    en: 'Max releases kept per movie in the cache.'
+  },
+  HD_ONLY: {
+    pt: 'Se true, prioriza só 1080p/2160p quando existir pelo menos um HD.',
+    en: 'If true, keep only 1080p/2160p releases when any exist.'
+  },
+  ENGLISH_TITLE_ONLY: {
+    pt: 'Se true, exige que o título do release bata com o título do Letterboxd (tokens).',
+    en: 'If true, require release title to match the Letterboxd title (token-based).'
+  },
+  EXCLUDE_TERMS: {
+    pt: 'Termos para excluir do título do release (separados por vírgula).',
+    en: 'Comma-separated terms to exclude from release titles.'
+  },
+  DEDUPE_SIZE_BUCKET_GIB: {
+    pt: 'Bucket (GiB) para deduplicação por tamanho.',
+    en: 'Size bucket (GiB) for de-duplication.'
+  },
+  INSPECT_METADATA: {
+    pt: 'Se true, inspeciona metadados do torrent (vídeo+legenda) antes de aceitar.',
+    en: 'If true, inspect torrent metadata (video+subs) before accepting.'
+  },
+  METADATA_TIMEOUT_MS: {
+    pt: 'Timeout (ms) da inspeção de metadados.',
+    en: 'Metadata inspection timeout (ms).'
+  },
+  METADATA_CONCURRENCY: {
+    pt: 'Quantas inspeções de metadados em paralelo.',
+    en: 'How many metadata inspections in parallel.'
+  },
+  CONCURRENCY: {
+    pt: 'Quantas buscas no Prowlarr em paralelo.',
+    en: 'How many Prowlarr searches in parallel.'
+  },
+  PROWLARR_TIMEOUT_MS: {
+    pt: 'Timeout (ms) das requisições ao Prowlarr.',
+    en: 'Prowlarr request timeout (ms).'
+  },
+  CACHE_FILE: {
+    pt: 'Arquivo JSON do cache.',
+    en: 'Cache JSON file.'
+  },
+  REWRITE_CACHE: {
+    pt: 'Se true, reescreve o cache do filme mesmo se já existir.',
+    en: 'If true, rewrite a movie cache entry even if it already exists.'
+  },
+  MAX_NEW_MOVIES_PER_RUN: {
+    pt: 'Limite de filmes novos adicionados ao cache por execução.',
+    en: 'Limit how many new movies can be added per run.'
+  },
+  LETTERBOXD_LIST_URL: {
+    pt: 'URL da lista do Letterboxd (usado quando você roda o cli.js sem argumento).',
+    en: 'Letterboxd list URL (used when running cli.js without args).'
+  },
+  EXECUTE_DEBRID: {
+    pt: 'Se true, o cli.js roda o debrid-cli.js automaticamente após finalizar.',
+    en: 'If true, cli.js runs debrid-cli.js automatically after finishing.'
+  },
+  AUTO_DOWNLOAD: {
+    pt: 'Se true, baixa automaticamente quando o torrent fica downloaded.',
+    en: 'If true, auto-download when a torrent becomes downloaded.'
+  },
+  AUTO_DOWNLOAD_DEST_DIR: {
+    pt: 'Pasta final da sua biblioteca de filmes (destino).',
+    en: 'Final movies library folder (destination).'
+  },
+  AUTO_DOWNLOAD_STAGING_DIR: {
+    pt: 'Pasta temporária de staging (fora da biblioteca do Plex).',
+    en: 'Temporary staging folder (keep outside Plex library).'
+  },
+  SEVEN_ZIP_PATH: {
+    pt: 'Caminho do 7z (principalmente no Windows) para extrair .rar.',
+    en: 'Path to 7z binary (mainly on Windows) to extract .rar.'
+  },
+  DIR_NAME_MOVIE_ONLY: {
+    pt: 'Se true, a pasta do filme fica só com o nome (sem ano/tmdb).',
+    en: 'If true, movie folder name is only the title (no year/tmdb).'
+  },
+  AUTO_DOWNLOAD_REUSE_STAGING: {
+    pt: 'Se true, reaproveita staging se uma execução anterior foi interrompida.',
+    en: 'If true, reuse staging if a previous run was interrupted.'
+  },
+  PLEX_BASE_URL: {
+    pt: 'Base URL do Plex (ex.: http://127.0.0.1:32400).',
+    en: 'Plex base URL (e.g. http://127.0.0.1:32400).'
+  },
+  PLEX_TOKEN: {
+    pt: 'Token do Plex.',
+    en: 'Plex token.'
+  },
+  PLEX_SECTION_ID_FILMES: {
+    pt: 'ID da biblioteca/section de Filmes no Plex.',
+    en: 'Plex Movies library section id.'
+  },
+  PLEX_REFRESH_AFTER_DOWNLOAD: {
+    pt: 'Se true, dá refresh no Plex após auto-download.',
+    en: 'If true, refresh Plex after auto-download.'
+  },
+  RADARR_BASE_URL: {
+    pt: 'Base URL do Radarr (ex.: http://127.0.0.1:7878).',
+    en: 'Radarr base URL (e.g. http://127.0.0.1:7878).'
+  },
+  RADARR_API_KEY: {
+    pt: 'API key do Radarr.',
+    en: 'Radarr API key.'
+  },
+  RADARR_QUALITY_PROFILE_ID: {
+    pt: 'ID do quality profile no Radarr.',
+    en: 'Radarr quality profile id.'
+  },
+  RADARR_ROOT_FOLDER_PATH: {
+    pt: 'Pasta raiz de filmes no Radarr.',
+    en: 'Radarr root folder path.'
+  },
+  RADARR_IMPORT_AFTER_DOWNLOAD: {
+    pt: 'Se true, importa o filme no Radarr após baixar.',
+    en: 'If true, import the movie into Radarr after download.'
+  },
+  LOGS_ENABLED: {
+    pt: 'Se true, grava logs diários em ./logs.',
+    en: 'If true, append daily logs under ./logs.'
+  },
+  LOGS_RETENTION_DAYS: {
+    pt: 'Quantos dias manter de logs (contando hoje).',
+    en: 'How many log days to keep (counting today).'
+  },
+  OUTPUT_JSON: {
+    pt: 'Se 1, imprime JSON detalhado ao final (quando suportado).',
+    en: 'If 1, print detailed JSON at the end (when supported).'
+  }
+};
+
+function maskIfSecret(key, val) {
+  const k = String(key || '').toUpperCase();
+  const v = String(val ?? '');
+  const looksSecret = k.includes('API_KEY') || k.includes('TOKEN') || k.includes('PASSWORD') || k.includes('SECRET');
+  if (!looksSecret) return v;
+  if (!v) return v;
+  if (v.length <= 6) return '*'.repeat(v.length);
+  return `${v.slice(0, 2)}***${v.slice(-2)}`;
+}
+
+function normalizeAnswer(ans) {
+  return String(ans ?? '').trim();
+}
+
+async function testConnections({ answers, tr, logger = console }) {
+  const results = [];
+
+  const prowlarrUrl = String(answers.PROWLARR_URL || '').trim();
+  const prowlarrKey = String(answers.PROWLARR_API_KEY || '').trim();
+  if (prowlarrUrl && prowlarrKey) {
+    try {
+      const url = String(prowlarrUrl).replace(/\/+$/, '') + '/api/v1/system/status';
+      await axios.get(url, { headers: { 'X-Api-Key': prowlarrKey }, timeout: 15_000 });
+      results.push({ name: 'Prowlarr', ok: true });
+    } catch (e) {
+      results.push({ name: 'Prowlarr', ok: false, msg: String(e?.response?.status || e?.message || e) });
+    }
+  } else {
+    results.push({ name: 'Prowlarr', skipped: true });
+  }
+
+  const rdUrl = String(answers.REALDEBRID_URL || '').trim().replace(/\/+$/, '');
+  const rdKey = String(answers.REALDEBRID_API_KEY || '').trim();
+  if (rdUrl && rdKey) {
+    try {
+      await axios.get(rdUrl + '/user', { headers: { Authorization: `Bearer ${rdKey}` }, timeout: 15_000 });
+      results.push({ name: 'Real-Debrid', ok: true });
+    } catch (e) {
+      results.push({ name: 'Real-Debrid', ok: false, msg: String(e?.response?.status || e?.message || e) });
+    }
+  } else {
+    results.push({ name: 'Real-Debrid', skipped: true });
+  }
+
+  const plexUrl = String(answers.PLEX_BASE_URL || '').trim().replace(/\/+$/, '');
+  const plexToken = String(answers.PLEX_TOKEN || '').trim();
+  if (plexUrl && plexToken) {
+    try {
+      await axios.get(plexUrl + '/identity', { params: { 'X-Plex-Token': plexToken }, timeout: 15_000 });
+      results.push({ name: 'Plex', ok: true });
+    } catch (e) {
+      results.push({ name: 'Plex', ok: false, msg: String(e?.response?.status || e?.message || e) });
+    }
+  } else {
+    results.push({ name: 'Plex', skipped: true });
+  }
+
+  const radarrUrl = String(answers.RADARR_BASE_URL || '').trim().replace(/\/+$/, '');
+  const radarrKey = String(answers.RADARR_API_KEY || '').trim();
+  if (radarrUrl && radarrKey) {
+    try {
+      await axios.get(radarrUrl + '/api/v3/system/status', { params: { apikey: radarrKey }, timeout: 15_000 });
+      results.push({ name: 'Radarr', ok: true });
+    } catch (e) {
+      results.push({ name: 'Radarr', ok: false, msg: String(e?.response?.status || e?.message || e) });
+    }
+  } else {
+    results.push({ name: 'Radarr', skipped: true });
+  }
+
+  logger.log('\n' + tr.testing);
+  for (const r of results) {
+    if (r.skipped) {
+      logger.log(`- ${r.name}: ${tr.skipped}`);
+    } else if (r.ok) {
+      logger.log(`- ${r.name}: ${tr.testOk}`);
+    } else {
+      logger.log(`- ${r.name}: ${tr.testFail}${r.msg ? ` (${r.msg})` : ''}`);
+    }
+  }
+
+  return results;
+}
+
+async function main() {
+  const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+  const examplePath = path.join(projectRoot, '.env.example');
+  const envPath = path.join(projectRoot, '.env');
+
+  const rl = readline.createInterface({ input, output });
+
+  try {
+    output.write('\n');
+    const choose = await rl.question(`$${' '}${'Choose language / Escolha o idioma:'}\n${' '}${'1) Português  2) English'}\n> `);
+    const lang = String(choose || '').trim() === '1' ? 'pt' : (String(choose || '').trim() === '2' ? 'en' : 'pt');
+    const tr = tFactory(lang);
+
+    output.write(`\n${tr.title}\n`);
+
+    if (tr.lang === 'pt') {
+      output.write('Este projeto automatiza: pegar filmes de uma lista do Letterboxd, buscar releases no Prowlarr, mandar pro Real-Debrid e (opcionalmente) baixar/organizar na sua pasta de filmes, atualizar Plex e importar no Radarr.\n');
+    } else {
+      output.write('This project automates: reading movies from a Letterboxd list, searching releases on Prowlarr, sending to Real-Debrid and (optionally) downloading/organizing into your movies folder, refreshing Plex, and importing into Radarr.\n');
+    }
+
+    output.write(`${tr.explainEnter}\n\n`);
+
+    if (!(await exists(examplePath))) {
+      throw new Error('.env.example not found');
+    }
+
+    const exampleText = await fs.readFile(examplePath, 'utf-8');
+    const vars = extractVarsFromExample(exampleText);
+    if (!vars.length) {
+      throw new Error('No variables found in .env.example');
+    }
+
+    let mode = 'overwrite';
+    let current = {};
+    if (await exists(envPath)) {
+      const ans = await rl.question(`${tr.foundExisting}\n${tr.existingOptions}\n> `);
+      const a = String(ans || '').trim();
+      if (a === '3') {
+        output.write(`${tr.cancelled}\n`);
+        process.exit(0);
+      }
+      mode = a === '2' ? 'update' : 'overwrite';
+      try {
+        current = parseEnvFile(await fs.readFile(envPath, 'utf-8'));
+      } catch {
+        current = {};
+      }
+    }
+
+    const answers = {};
+
+    for (const v of vars) {
+      const key = v.key;
+      const exampleDefault = v.def ?? '';
+      const defaultVal = mode === 'update' && Object.prototype.hasOwnProperty.call(current, key) ? String(current[key]) : String(exampleDefault);
+
+      output.write(`\n=== ${key} ===\n`);
+      const help = HELP?.[key]?.[tr.lang] || '';
+      if (help) {
+        output.write(`${help}\n`);
+      }
+      const shown = maskIfSecret(key, defaultVal);
+      const q = `${tr.varPrompt} [${shown}]: `;
+      const raw = await rl.question(q);
+      const a = normalizeAnswer(raw);
+      answers[key] = a ? a : defaultVal;
+    }
+
+    const headerLines = [
+      '# Local configuration',
+      '#',
+      '# Generated by: node scripts/setup-env.js',
+      `# Platform: ${isWindows() ? 'windows' : process.platform}`,
+      '#',
+      '# NOTE: This file may contain secrets. Do not commit it.',
+      ''
+    ];
+
+    const outLines = [...headerLines];
+    for (const v of vars) {
+      outLines.push(`${v.key}=${answers[v.key] ?? ''}`);
+    }
+    outLines.push('');
+
+    output.write(`\n${tr.writing}\n`);
+    const tmp = `${envPath}.tmp`;
+    await fs.writeFile(tmp, outLines.join('\n'), 'utf-8');
+    await fs.rename(tmp, envPath);
+
+    output.write(`${tr.done}\n${tr.nextSteps}\n`);
+
+    const testAns = await rl.question(`\n${tr.askTests} `);
+    const a = String(testAns || '').trim().toLowerCase();
+    const yes = tr.lang === 'pt' ? (a === 's' || a === 'sim' || a === 'y' || a === 'yes') : (a === 'y' || a === 'yes' || a === 's' || a === 'sim');
+    if (yes) {
+      await testConnections({ answers, tr, logger: console });
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+main().catch((e) => {
+  console.error(String(e?.message || e));
+  process.exit(1);
+});
