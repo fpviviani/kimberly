@@ -133,6 +133,34 @@ Some apps may require setting a **URL Base** in their UI to work perfectly behin
 If anything looks broken (assets/redirects), use the direct ports or configure URL Base in the app.
 
 <details>
+<summary><strong>(Required) How to configure Prowlarr to find torrents</strong></summary>
+
+**Prowlarr is required**: it aggregates indexers and is what allows this project to find torrents.
+
+Step by step:
+
+1) Open the Prowlarr UI:
+   - http://localhost/prowlarr (or http://localhost:9696)
+
+2) In the menu, go to **Indexers**
+
+3) Click **Add Indexers**
+   - Select where you want Prowlarr to search for torrents (e.g. RARBG, YTS, etc.)
+   - The more indexers you add, the better your coverage usually is
+
+4) Click **Test All Indexers** to validate that everything works
+   - Remove any indexers that are not working (if any)
+
+5) Click **Save** (important)
+
+Done: Prowlarr configured.
+
+If you’re unsure, check Prowlarr’s official quick start:
+- https://wiki.servarr.com/prowlarr/quick-start-guide
+
+</details>
+
+<details>
 <summary><strong>(Optional) How to configure Bazarr for automatic subtitle downloads</strong></summary>
 
 **Bazarr** is used to **automatically download subtitles** for your media, integrating with Radarr/Sonarr (here we focus on Radarr).

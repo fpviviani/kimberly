@@ -133,6 +133,34 @@ Alguns apps precisam que você configure o **URL Base** na GUI para funcionar 10
 Se algo ficar estranho (assets quebrados/redirect errado), use a porta direta ou configure o URL Base no app.
 
 <details>
+<summary><strong>(Obrigatório) Como configurar o Prowlarr para encontrar torrents</strong></summary>
+
+O **Prowlarr** é **obrigatório**: é ele que agrega os indexers e permite que o projeto encontre torrents.
+
+Passo a passo:
+
+1) Abra a GUI do Prowlarr:
+   - http://localhost/prowlarr (ou http://localhost:9696)
+
+2) No menu, vá em **Indexers**
+
+3) Clique em **Add Indexers**
+   - Selecione de onde você quer que o Prowlarr busque torrents (ex.: RARBG, YTS, etc.)
+   - Quanto mais indexers você adicionar, melhor tende a ser a cobertura de resultados
+
+4) Clique em **Test All Indexers** para validar se todos estão funcionando
+   - Remova os que não estiverem funcionando (se houver)
+
+5) Clique em **Save** (importante)
+
+Pronto: Prowlarr configurado.
+
+Se ficar com dúvida, confira o guia oficial do Prowlarr:
+- https://wiki.servarr.com/prowlarr/quick-start-guide
+
+</details>
+
+<details>
 <summary><strong>(Opcional) Como configurar o Bazarr para baixar legendas automaticamente</strong></summary>
 
 O **Bazarr** serve para **baixar legendas automaticamente** para seus filmes/séries, integrando com Radarr/Sonarr (aqui a gente foca em Radarr).
