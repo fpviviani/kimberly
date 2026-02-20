@@ -62,8 +62,16 @@ npm i
 
 Option A (interactive wizard):
 
+- Without Docker (Node installed on the host):
+
 ```bash
 npm run setup
+```
+
+- With Docker (no Node on the host):
+
+```bash
+docker compose run --rm crawler-setup
 ```
 
 Option B (manual):
