@@ -1,6 +1,17 @@
 version: "3.8"
 
 services:
+  crawler-setup:
+    build: .
+    container_name: torrent-auto-crawlerr-crawler-setup
+    restart: "no"
+    env_file:
+      - ./.env
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: ["node","scripts/setup-env.js"]
+
   crawler-cli:
     build: .
     container_name: torrent-auto-crawlerr-crawler-cli

@@ -41,7 +41,9 @@ A Node.js automation project that:
 - **7-Zip (`7z`)** installed
   - only needed if you enable `AUTO_DOWNLOAD` and Real-Debrid returns `.rar` archives (extraction via `7z x`)
 
-## Installation (step by step)
+## Installation (step by step) — MANUAL MODE (no Docker)
+
+> If you will use **Docker**, skip this section and go straight to: **Docker (Prowlarr/Radarr/Bazarr stack + nice local URLs)**.
 
 1) Clone the repo
 
@@ -128,7 +130,25 @@ Requirement: Docker + Docker Compose.
 
 ### Start the stack
 
-1) Configure `.env` (at minimum `AUTO_DOWNLOAD_DEST_DIR`, `LETTERBOXD_LIST_URL`, and `PROWLARR_API_KEY`)
+1) Configure `.env`
+
+Recommended option (interactive wizard):
+
+- If you have Node installed on the host:
+
+```bash
+npm run setup
+```
+
+- If you are Docker-only (no Node on the host):
+
+```bash
+docker compose run --rm crawler-setup
+```
+
+> Recommended: the wizard validates required fields and guides you through the flow. Editing `.env` manually is intended for advanced users.
+
+At minimum, you need: `AUTO_DOWNLOAD_DEST_DIR`, `LETTERBOXD_LIST_URL`, and `PROWLARR_API_KEY`.
 
 2) Start the services (GUIs + proxy):
 
