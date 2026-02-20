@@ -71,8 +71,8 @@ function tFactory(lang) {
     writing: isPT ? 'Escrevendo .env...' : 'Writing .env...',
     done: isPT ? 'Pronto! .env atualizado.' : 'Done! .env updated.',
     nextSteps: isPT
-      ? 'Próximos passos: rode o CLI (ex.: node src/cli.js) e veja se conecta no Prowlarr.'
-      : 'Next steps: run the CLI (e.g. node src/cli.js) and check if it can reach Prowlarr.',
+      ? 'Próximos passos: rode o CLI (ex.: node src/bin/cli.js) e veja se conecta no Prowlarr.'
+      : 'Next steps: run the CLI (e.g. node src/bin/cli.js) and check if it can reach Prowlarr.',
     askTests: isPT ? 'Quer rodar um teste de conexão agora? (s/N)' : 'Run a connectivity test now? (y/N)',
     testing: isPT ? 'Testando conexões...' : 'Testing connectivity...',
     testOk: 'OK',

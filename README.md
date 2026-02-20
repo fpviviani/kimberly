@@ -33,10 +33,10 @@ Um projeto de automação em Node.js que:
 
 ### O que cada executável faz (resumo rápido)
 
-- **`src/cli.js`**: lê a lista do Letterboxd, busca releases no Prowlarr, filtra/deduplica/prioriza e salva/atualiza o `cache.json`.
-- **`src/debrid-cli.js`**: pega os filmes pendentes (da lista ou via pipe), envia torrents/magnets pro Real-Debrid, seleciona arquivos e (se habilitado) dispara o auto-download + ações (Plex/Radarr).
-- **`src/debrid-monitor.js`**: monitora torrents já enviados ao Real-Debrid (queued/downloading) e finaliza quando ficarem prontos, baixando/extraindo/movendo arquivos conforme o pipeline.
-- **`src/manual-import.js`**: utilitário para corrigir/ajudar importação no Radarr de um download já existente (e opcionalmente refresh do Plex após adicionar/importar).
+- **`src/bin/cli.js`**: lê a lista do Letterboxd, busca releases no Prowlarr, filtra/deduplica/prioriza e salva/atualiza o `cache.json`.
+- **`src/bin/debrid-cli.js`**: pega os filmes pendentes (da lista ou via pipe), envia torrents/magnets pro Real-Debrid, seleciona arquivos e (se habilitado) dispara o auto-download + ações (Plex/Radarr).
+- **`src/bin/debrid-monitor.js`**: monitora torrents já enviados ao Real-Debrid (queued/downloading) e finaliza quando ficarem prontos, baixando/extraindo/movendo arquivos conforme o pipeline.
+- **`src/bin/manual-import.js`**: utilitário para corrigir/ajudar importação no Radarr de um download já existente (e opcionalmente refresh do Plex após adicionar/importar).
 
 ### Prioridade de qualidade (sorting)
 
@@ -403,8 +403,8 @@ crontab -e
 **Sem Docker (Node no host):**
 
 ```cron
-*/30 * * * * cd <project-root> && /usr/bin/env node src/cli.js >> logs/cli.log 2>&1
-*/30 * * * * cd <project-root> && /usr/bin/env node src/debrid-monitor.js >> logs/monitor.log 2>&1
+*/30 * * * * cd <project-root> && /usr/bin/env node src/bin/cli.js >> logs/cli.log 2>&1
+*/30 * * * * cd <project-root> && /usr/bin/env node src/bin/debrid-monitor.js >> logs/monitor.log 2>&1
 ```
 
 **Com Docker:**
@@ -473,13 +473,13 @@ Atalhos (Docker):
 **Modo A: URL da lista do Letterboxd**
 
 ```bash
-node src/cli.js "https://boxd.it/xxxx"
+node src/bin/cli.js "https://boxd.it/xxxx"
 ```
 
 **Com Docker (sem Node no host)**
 
 ```bash
-docker compose run --rm crawler-cli node src/cli.js "https://boxd.it/xxxx"
+docker compose run --rm crawler-cli node src/bin/cli.js "https://boxd.it/xxxx"
 ```
 
 **Modo A (fallback): usar `LETTERBOXD_LIST_URL` do `.env`**
@@ -489,19 +489,19 @@ docker compose run --rm crawler-cli node src/cli.js "https://boxd.it/xxxx"
 LETTERBOXD_LIST_URL=https://boxd.it/xxxx
 
 # rodar sem args
-node src/cli.js
+node src/bin/cli.js
 
 # (Docker)
-docker compose run --rm crawler-cli node src/cli.js
+docker compose run --rm crawler-cli node src/bin/cli.js
 ```
 
 **Modo B: array explícito de filmes** (JSON; cada item no formato `"nome - ano"`)
 
 ```bash
-node src/cli.js --movies "[\"Don't Play Us Cheap - 1973\", \"The French Connection - 1971\"]"
+node src/bin/cli.js --movies "[\"Don't Play Us Cheap - 1973\", \"The French Connection - 1971\"]"
 
 # (Docker)
-docker compose run --rm crawler-cli node src/cli.js --movies "[\"Don't Play Us Cheap - 1973\", \"The French Connection - 1971\"]"
+docker compose run --rm crawler-cli node src/bin/cli.js --movies "[\"Don't Play Us Cheap - 1973\", \"The French Connection - 1971\"]"
 ```
 
 Saída: um array JSON com títulos do cache onde `process_executed !== true`.
@@ -521,32 +521,32 @@ Atalhos (Docker):
 Rodar usando a URL da lista do Letterboxd:
 
 ```bash
-node src/debrid-cli.js "https://boxd.it/xxxx"
+node src/bin/debrid-cli.js "https://boxd.it/xxxx"
 ```
 
 Rodar sem parâmetros (usa `LETTERBOXD_LIST_URL` do `.env`):
 
 ```bash
-node src/debrid-cli.js
+node src/bin/debrid-cli.js
 ```
 
 Ou pipeando o array de pendentes do `cli.js`:
 
 ```bash
-node src/cli.js "https://boxd.it/xxxx" | node src/debrid-cli.js
+node src/bin/cli.js "https://boxd.it/xxxx" | node src/bin/debrid-cli.js
 ```
 
 **Com Docker (sem Node no host)**
 
 ```bash
 # com URL
-docker compose run --rm crawler-cli node src/debrid-cli.js "https://boxd.it/xxxx"
+docker compose run --rm crawler-cli node src/bin/debrid-cli.js "https://boxd.it/xxxx"
 
 # sem args (usa LETTERBOXD_LIST_URL do .env)
-docker compose run --rm crawler-cli node src/debrid-cli.js
+docker compose run --rm crawler-cli node src/bin/debrid-cli.js
 
 # pipe (gera pendentes no container e envia para o debrid-cli no mesmo container)
-docker compose run --rm crawler-cli sh -lc 'node src/cli.js "https://boxd.it/xxxx" | node src/debrid-cli.js'
+docker compose run --rm crawler-cli sh -lc 'node src/bin/cli.js "https://boxd.it/xxxx" | node src/bin/debrid-cli.js'
 ```
 
 ### Debrid monitor
@@ -560,14 +560,14 @@ Atalhos (Docker):
 **Sem Docker (Node no host)**
 
 ```bash
-node src/debrid-monitor.js
+node src/bin/debrid-monitor.js
 ```
 
 **Com Docker (sem Node no host)**
 
 ```bash
 docker compose run --rm crawler-monitor
-# (equivalente a: docker compose run --rm crawler-monitor node src/debrid-monitor.js)
+# (equivalente a: docker compose run --rm crawler-monitor node src/bin/debrid-monitor.js)
 ```
 
 ### Import manual para o Radarr (pasta existente)
@@ -580,13 +580,13 @@ Se você baixou um filme manualmente e criou uma pasta dentro da sua biblioteca 
 
 ```bash
 # Sem Docker (Node no host)
-node src/manual-import.js "Movie Name - 1999"
+node src/bin/manual-import.js "Movie Name - 1999"
 # ou sem ano:
-node src/manual-import.js "Movie Name"
+node src/bin/manual-import.js "Movie Name"
 
 # Com Docker (sem Node no host)
-docker compose run --rm crawler-cli node src/manual-import.js "Movie Name - 1999"
-docker compose run --rm crawler-cli node src/manual-import.js "Movie Name"
+docker compose run --rm crawler-cli node src/bin/manual-import.js "Movie Name - 1999"
+docker compose run --rm crawler-cli node src/bin/manual-import.js "Movie Name"
 ```
 
 ## Variáveis de ambiente úteis

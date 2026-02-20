@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 import 'dotenv/config';
 import pLimit from 'p-limit';
-import { fetchLetterboxdListMovies } from './letterboxd.js';
-import { prowlarrSearch } from './prowlarr.js';
-import { defaultCachePath, loadCache, saveCache, getCachedMovie, upsertCachedMovie } from './cache.js';
+import { fetchLetterboxdListMovies } from '../letterboxd.js';
+import { prowlarrSearch } from '../prowlarr.js';
+import { defaultCachePath, loadCache, saveCache, getCachedMovie, upsertCachedMovie } from '../cache.js';
 import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { initDailyLogger } from './logging.js';
+import { initDailyLogger } from '../logging.js';
 
 // STUB: if you implement torrent downloading, uncomment the import below.
-import { downloadTorrentStub } from './torrent-download.stub.js';
+import { downloadTorrentStub } from '../torrent-download.stub.js';
 
 function bytesToGiB(b) {
   return b / (1024 ** 3);
@@ -173,8 +173,8 @@ function parseMoviesArrayArg(val) {
 }
 
 // CLI modes:
-// 1) List URL: node src/cli.js "https://boxd.it/..."
-// 2) Movies array: node src/cli.js --movies '["Title - 1999", "Other - 2001"]'
+// 1) List URL: node src/bin/cli.js "https://boxd.it/..."
+// 2) Movies array: node src/bin/cli.js --movies '["Title - 1999", "Other - 2001"]'
 //    (also accepts passing the JSON array as the first arg)
 let listUrl = '';
 let moviesFromArg = null;
@@ -230,7 +230,7 @@ const limit = pLimit(concurrency);
 
 const prowlarrTimeoutMs = Number(process.env.PROWLARR_TIMEOUT_MS || '30000');
 
-const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..');
 const dailyLog = await initDailyLogger({ projectRoot, logger: console });
 
 const cachePath = process.env.CACHE_FILE ? process.env.CACHE_FILE : defaultCachePath();

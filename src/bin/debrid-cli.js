@@ -1,32 +1,49 @@
 #!/usr/bin/env node
 import 'dotenv/config';
 import pLimit from 'p-limit';
-import { fetchLetterboxdListMovies } from './letterboxd.js';
-import { prowlarrSearch } from './prowlarr.js';
-import { DebridProvider } from './providers/debrid.js';
-import { tryMagnetsUntilDownloaded } from './debrid-engine.js';
-import { defaultCachePath, loadCache, saveCache, getCachedMovie, upsertCachedMovie, patchCachedTorrent, patchMovie } from './cache.js';
+import { fetchLetterboxdListMovies } from '../letterboxd.js';
+import { prowlarrSearch } from '../prowlarr.js';
+import { DebridProvider } from '../providers/debrid.js';
+import { tryMagnetsUntilDownloaded } from '../debrid-engine.js';
+import { defaultCachePath, loadCache, saveCache, getCachedMovie, upsertCachedMovie, patchCachedTorrent, patchMovie } from '../cache.js';
 import { spawn } from 'node:child_process'
-import { runAutoDownload } from './auto-download.js';
+import { runAutoDownload } from '../auto-download.js';
 import axios from 'axios';
 import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { initDailyLogger } from './logging.js';
+import { initDailyLogger } from '../logging.js';
 
 function bytesToGiB(b) {
   return b / (1024 ** 3);
 }
 
-async function downloadTorrentFromProwlarr({ url, apiKey }) {
+async function downloadTorrentOrMagnetFromProwlarr({ url, apiKey }) {
   if (!url) throw new Error('downloadTorrentFromProwlarr: missing url');
   if (!apiKey) throw new Error('downloadTorrentFromProwlarr: missing apiKey');
+
   const resp = await axios.get(url, {
     responseType: 'arraybuffer',
     timeout: 60_000,
-    headers: { 'X-Api-Key': apiKey }
+    headers: { 'X-Api-Key': apiKey },
+    maxRedirects: 0,
+    validateStatus: () => true
   });
-  return Buffer.from(resp.data);
+
+  // Prowlarr /download may redirect to magnet:
+  if (resp.status === 301 || resp.status === 302 || resp.status === 303 || resp.status === 307 || resp.status === 308) {
+    const loc = resp.headers?.location;
+    if (typeof loc === 'string' && loc.startsWith('magnet:')) {
+      return { kind: 'magnet', magnet: loc };
+    }
+    throw new Error(`Redirected request failed: ${loc || '(missing Location header)'}`);
+  }
+
+  if (resp.status < 200 || resp.status >= 300) {
+    throw new Error(`Failed to download torrent (status=${resp.status})`);
+  }
+
+  return { kind: 'torrent', buf: Buffer.from(resp.data) };
 }
 
 function slug(s) {
@@ -39,21 +56,34 @@ function slug(s) {
 }
 
 async function ensureTorrentPath({ cachePath, cache, movieTitle, attemptTitle, torrentUrl, logger = console }) {
-  if (!torrentUrl) return { cache, torrent_path: '' };
+  if (!torrentUrl) return { cache, torrent_path: '', magnet: '' };
 
   const torrentsDir = path.resolve(path.dirname(cachePath), 'torrents');
   await fs.mkdir(torrentsDir, { recursive: true });
 
-  const buf = await downloadTorrentFromProwlarr({ url: torrentUrl, apiKey: process.env.PROWLARR_API_KEY });
+  const res = await downloadTorrentOrMagnetFromProwlarr({ url: torrentUrl, apiKey: process.env.PROWLARR_API_KEY });
+
+  if (res.kind === 'magnet') {
+    cache = patchCachedTorrent(cache, movieTitle, attemptTitle, {
+      magnet: res.magnet,
+      torrent_url: null,
+      torrent_path: null
+    });
+    await saveCache(cachePath, cache);
+    logger.log(`TORRENT_IMPORT: resolved magnet redirect for "${attemptTitle}"`);
+    return { cache, torrent_path: '', magnet: res.magnet };
+  }
+
+  const buf = res.buf;
   const hash = crypto.createHash('sha1').update(buf).digest('hex').slice(0, 10);
   const filename = `${slug(attemptTitle) || 'torrent'}-${hash}.torrent`;
   const outPath = path.join(torrentsDir, filename);
   await fs.writeFile(outPath, buf);
 
-  cache = patchCachedTorrent(cache, movieTitle, attemptTitle, { torrent_path: outPath });
+  cache = patchCachedTorrent(cache, movieTitle, attemptTitle, { torrent_path: outPath, torrent_url: null });
   await saveCache(cachePath, cache);
   logger.log(`TORRENT_IMPORT: saved ${outPath}`);
-  return { cache, torrent_path: outPath };
+  return { cache, torrent_path: outPath, magnet: '' };
 }
 
 function normalizeCodec(c) {
@@ -166,7 +196,7 @@ if (!movieTitlesFromArray && !listUrl) {
       process.exit(2);
     }
   } else {
-    console.error('Usage: node src/debrid-cli.js <letterboxd_list_url>  OR  node src/debrid-cli.js "[\\"movie 1\\",\\"movie 2\\"]"  OR  node src/cli.js <listUrl> | node src/debrid-cli.js');
+    console.error('Usage: node src/bin/debrid-cli.js <letterboxd_list_url>  OR  node src/bin/debrid-cli.js "[\\"movie 1\\",\\"movie 2\\"]"  OR  node src/bin/cli.js <listUrl> | node src/bin/debrid-cli.js');
     process.exit(2);
   }
 }
@@ -201,7 +231,7 @@ let cache = await loadCache(cachePath);
 
 const provider = new DebridProvider({ baseUrl: providerBaseUrl, apiKey: realdebridApiKey });
 
-const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..');
 const dailyLog = await initDailyLogger({ projectRoot, logger: console });
 
 let movies;
@@ -307,7 +337,9 @@ for (const movie of movies) {
   const attempts = [];
   for (const r of chosen) {
     let torrent_path = r.torrent_path || '';
-    if (!r.magnet && !torrent_path && r.torrent_url) {
+    let magnet = r.magnet || '';
+
+    if (!magnet && !torrent_path && r.torrent_url) {
       try {
         const res = await ensureTorrentPath({
           cachePath,
@@ -319,6 +351,7 @@ for (const movie of movies) {
         });
         cache = res.cache;
         torrent_path = res.torrent_path;
+        magnet = res.magnet || magnet;
       } catch (e) {
         const msg = String(e?.message || e);
         console.log(`TORRENT_IMPORT: failed for movie="${movie.title}" attempt="${r.title}": ${msg}`);
@@ -326,7 +359,7 @@ for (const movie of movies) {
       }
     }
 
-    attempts.push({ title: r.title, magnet: r.magnet || '', torrent_path });
+    attempts.push({ title: r.title, magnet: magnet || '', torrent_path });
   }
 
   console.log(`Movie: ${movie.title}${movie.year ? ` (${movie.year})` : ''} :: trying ${attempts.length} attempts`);

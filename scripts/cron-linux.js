@@ -76,11 +76,11 @@ function main() {
 
   const cliCmd = useDocker
     ? `docker compose run --rm crawler-cli`
-    : `/usr/bin/env node src/cli.js`;
+    : `/usr/bin/env node src/bin/cli.js`;
 
   const monCmd = useDocker
     ? `docker compose run --rm crawler-monitor`
-    : `/usr/bin/env node src/debrid-monitor.js`;
+    : `/usr/bin/env node src/bin/debrid-monitor.js`;
 
   const block = [
     '# kimberly BEGIN',

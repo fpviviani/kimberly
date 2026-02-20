@@ -15,7 +15,7 @@ help:
 	@echo "  setup        -> docker compose run --rm crawler-setup"
 	@echo "  cli          -> docker compose run --rm crawler-cli"
 	@echo "  monitor      -> docker compose run --rm crawler-monitor"
-	@echo "  debrid       -> docker compose run --rm crawler-cli node src/debrid-cli.js"
+	@echo "  debrid       -> docker compose run --rm crawler-cli node src/bin/debrid-cli.js"
 	@echo "  debrid-url   -> make debrid-url URL=\"https://boxd.it/xxxx\""
 	@echo
 	@echo "Cron scripts (inside docker):"
@@ -46,11 +46,11 @@ monitor:
 	docker compose run --rm crawler-monitor
 
 debrid:
-	docker compose run --rm crawler-cli node src/debrid-cli.js
+	docker compose run --rm crawler-cli node src/bin/debrid-cli.js
 
 debrid-url:
 	@if [ -z "$(URL)" ]; then echo "Missing URL. Example: make debrid-url URL=\"https://boxd.it/xxxx\""; exit 2; fi
-	docker compose run --rm crawler-cli node src/debrid-cli.js "$(URL)"
+	docker compose run --rm crawler-cli node src/bin/debrid-cli.js "$(URL)"
 
 cron-linux:
 	docker compose run --rm crawler-cli npm run cron:linux

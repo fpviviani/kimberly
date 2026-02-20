@@ -9,4 +9,4 @@ COPY src ./src
 COPY scripts ./scripts
 
 # default command (overridden by docker-compose services)
-CMD ["node","src/cli.js"]
+CMD ["node","src/bin/cli.js"]

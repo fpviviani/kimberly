@@ -2,12 +2,12 @@
 import 'dotenv/config';
 import fs from 'fs/promises';
 import path from 'path';
-import { radarrAddMovieIfMissing } from './radarr.js';
-import { plexRefreshSection } from './plex.js';
+import { radarrAddMovieIfMissing } from '../radarr.js';
+import { plexRefreshSection } from '../plex.js';
 
 function usage() {
-  console.log('Usage: node src/manual-import.js "Movie Name - 1999"');
-  console.log('   or: node src/manual-import.js "Movie Name"');
+  console.log('Usage: node src/bin/manual-import.js "Movie Name - 1999"');
+  console.log('   or: node src/bin/manual-import.js "Movie Name"');
   console.log('Env: RADARR_API_KEY (required), RADARR_BASE_URL, RADARR_ROOT_FOLDER_PATH (or AUTO_DOWNLOAD_DEST_DIR).');
   process.exit(2);
 }

@@ -34,7 +34,7 @@ switch ($Command.ToLowerInvariant()) {
       "  setup              -> docker compose run --rm crawler-setup",
       "  cli                -> docker compose run --rm crawler-cli",
       "  monitor            -> docker compose run --rm crawler-monitor",
-      "  debrid             -> docker compose run --rm crawler-cli node src/debrid-cli.js",
+      "  debrid             -> docker compose run --rm crawler-cli node src/bin/debrid-cli.js",
       "  debrid-url <url>   -> run debrid-cli.js with a Letterboxd URL",
       "",
       "Cron scripts (inside docker):",
@@ -53,14 +53,14 @@ switch ($Command.ToLowerInvariant()) {
   'cli' { Run "docker compose run --rm crawler-cli"; break }
   'monitor' { Run "docker compose run --rm crawler-monitor"; break }
 
-  'debrid' { Run "docker compose run --rm crawler-cli node src/debrid-cli.js"; break }
+  'debrid' { Run "docker compose run --rm crawler-cli node src/bin/debrid-cli.js"; break }
   'debrid-url' {
     if (-not $Args -or $Args.Count -lt 1 -or [string]::IsNullOrWhiteSpace($Args[0])) {
       Write-Host "Missing URL. Example: .\\scripts\\docker.ps1 debrid-url https://boxd.it/xxxx" -ForegroundColor Yellow
       exit 2
     }
     $url = $Args[0]
-    Run "docker compose run --rm crawler-cli node src/debrid-cli.js \"$url\""
+    Run "docker compose run --rm crawler-cli node src/bin/debrid-cli.js \"$url\""
     break
   }
 

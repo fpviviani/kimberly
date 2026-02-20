@@ -36,7 +36,7 @@ services:
       - ./data:/data
     networks:
       - media
-    command: ["node","src/cli.js"]
+    command: ["node","src/bin/cli.js"]
 
   crawler-monitor:
     build: .
@@ -62,7 +62,7 @@ services:
       - ./data:/data
     networks:
       - media
-    command: ["node","src/debrid-monitor.js"]
+    command: ["node","src/bin/debrid-monitor.js"]
 
   caddy:
     image: caddy:2
