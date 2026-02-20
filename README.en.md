@@ -464,6 +464,10 @@ Notes:
 
 This is the **manual usage** (run now, without waiting for cron).
 
+Shortcuts (Docker):
+- Linux: `make cli`
+- Windows: `.\\scripts\\docker.ps1 cli` (or `.\\scripts\\docker.cmd cli`)
+
 **Without Docker (Node on the host)**
 
 **Mode A: Letterboxd list URL**
@@ -506,6 +510,10 @@ Output: a JSON array with movie titles from the cache where `process_executed !=
 
 This is the **manual usage** (run now, without waiting for cron).
 
+Shortcuts (Docker):
+- Linux: `make debrid` (or `make debrid-url URL="https://boxd.it/xxxx"`)
+- Windows: `.\\scripts\\docker.ps1 debrid` / `.\\scripts\\docker.ps1 debrid-url https://boxd.it/xxxx`
+
 - If you **don’t pass a list URL as an argument**, the script uses `LETTERBOXD_LIST_URL` from `.env`.
 
 **Without Docker (Node on the host)**
@@ -545,6 +553,10 @@ docker compose run --rm crawler-cli sh -lc 'node src/cli.js "https://boxd.it/xxx
 
 This is the **manual usage** (run now, without waiting for cron).
 
+Shortcuts (Docker):
+- Linux: `make monitor`
+- Windows: `.\\scripts\\docker.ps1 monitor` (or `.\\scripts\\docker.cmd monitor`)
+
 **Without Docker (Node on the host)**
 
 ```bash
@@ -559,6 +571,10 @@ docker compose run --rm crawler-monitor
 ```
 
 ### Manual import to Radarr (existing folder)
+
+Shortcuts (Docker):
+- Linux: `make cli` (or run the command below)
+- Windows: `.\\scripts\\docker.ps1 cli` (or run the command below)
 
 If you downloaded a movie manually and created a folder under your library path (e.g. `/path/to/Movies/<Movie Folder>` or `C:\\Videos\\Movies\\<Movie Folder>`), you can ask this script to find the folder and add it to Radarr. It will also trigger a Plex refresh for the Movies section.
 

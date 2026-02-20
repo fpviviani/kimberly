@@ -464,6 +464,10 @@ Notas:
 
 Esta seção mostra o **uso manual** (para rodar agora, sem esperar o CRON).
 
+Atalhos (Docker):
+- Linux: `make cli`
+- Windows: `.\\scripts\\docker.ps1 cli` (ou `.\\scripts\\docker.cmd cli`)
+
 **Sem Docker (Node no host)**
 
 **Modo A: URL da lista do Letterboxd**
@@ -506,6 +510,10 @@ Saída: um array JSON com títulos do cache onde `process_executed !== true`.
 
 Esta seção mostra o **uso manual** (para rodar agora, sem esperar o CRON).
 
+Atalhos (Docker):
+- Linux: `make debrid` (ou `make debrid-url URL="https://boxd.it/xxxx"`)
+- Windows: `.\\scripts\\docker.ps1 debrid` / `.\\scripts\\docker.ps1 debrid-url https://boxd.it/xxxx`
+
 - Se você **não informar uma lista como parâmetro**, o script usa a `LETTERBOXD_LIST_URL` do `.env`.
 
 **Sem Docker (Node no host)**
@@ -545,6 +553,10 @@ docker compose run --rm crawler-cli sh -lc 'node src/cli.js "https://boxd.it/xxx
 
 Esta seção mostra o **uso manual** (para rodar agora, sem esperar o CRON).
 
+Atalhos (Docker):
+- Linux: `make monitor`
+- Windows: `.\\scripts\\docker.ps1 monitor` (ou `.\\scripts\\docker.cmd monitor`)
+
 **Sem Docker (Node no host)**
 
 ```bash
@@ -559,6 +571,10 @@ docker compose run --rm crawler-monitor
 ```
 
 ### Import manual para o Radarr (pasta existente)
+
+Atalhos (Docker):
+- Linux: `make cli` (ou rode o comando abaixo)
+- Windows: `.\\scripts\\docker.ps1 cli` (ou rode o comando abaixo)
 
 Se você baixou um filme manualmente e criou uma pasta dentro da sua biblioteca (ex.: `/path/to/Movies/<Movie Folder>` ou `C:\\Videos\\Movies\\<Movie Folder>`), você pode pedir para este script encontrar a pasta e adicionar no Radarr. Ele também dispara um refresh do Plex.
 
