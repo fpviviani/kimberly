@@ -187,6 +187,10 @@ Opção recomendada (wizard interativo):
 docker compose run --rm crawler-setup
 ```
 
+Atalhos:
+- Linux: `make setup`
+- Windows: `.\scripts\docker.ps1 setup` (ou `.\scripts\docker.cmd setup`)
+
 > Recomendado: o wizard valida campos obrigatórios e te guia no fluxo. Configurar o `.env` manualmente é indicado apenas para usuários avançados.
 
 No mínimo, você precisa ter: `AUTO_DOWNLOAD_DEST_DIR`, `LETTERBOXD_LIST_URL` e `PROWLARR_API_KEY`.
@@ -195,6 +199,20 @@ No mínimo, você precisa ter: `AUTO_DOWNLOAD_DEST_DIR`, `LETTERBOXD_LIST_URL` e
 
 ```bash
 docker compose up -d
+```
+
+Atalhos (Linux):
+
+```bash
+make up
+```
+
+Atalhos (Windows):
+
+```powershell
+.\scripts\docker.ps1 up
+# ou
+.\scripts\docker.cmd up
 ```
 
 ### Importante (paths com reverse proxy)
