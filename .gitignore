@@ -15,3 +15,7 @@ logs/*
 
 # local trash/staging
 _TRASH/
+
+# staging downloads
+staging downloads/*
+!staging downloads/.gitkeep

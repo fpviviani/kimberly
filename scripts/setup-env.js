@@ -86,163 +86,163 @@ function tFactory(lang) {
 const HELP = {
   PROWLARR_URL: {
     pt: 'URL do Prowlarr (ex.: http://localhost:9696).',
-    en: 'Prowlarr base URL (e.g. http://localhost:9696).'
+    en: 'Prowlarr base URL (e.g. http://localhost:9696).',
   },
   PROWLARR_API_KEY: {
     pt: 'API key do Prowlarr (Settings → General).',
-    en: 'Prowlarr API key (Settings → General).'
+    en: 'Prowlarr API key (Settings → General).',
   },
   REALDEBRID_URL: {
     pt: 'Base URL da API do Real-Debrid (default já funciona).',
-    en: 'Real-Debrid API base URL (default should work).'
+    en: 'Real-Debrid API base URL (default should work).',
   },
   REALDEBRID_API_KEY: {
     pt: 'Token/API key do Real-Debrid.',
-    en: 'Real-Debrid token/API key.'
+    en: 'Real-Debrid token/API key.',
   },
   DEBRID_VERBOSE: {
     pt: 'Logs detalhados do fluxo de debrid.',
-    en: 'Verbose logging for the debrid flow.'
+    en: 'Verbose logging for the debrid flow.',
   },
   DEBRID_RETRY_DELAY_MS: {
     pt: 'Delay base (ms) para retry quando tomar 429 (rate limit).',
-    en: 'Base retry delay (ms) on HTTP 429 rate limit.'
+    en: 'Base retry delay (ms) on HTTP 429 rate limit.',
   },
   MIN_GIB: {
     pt: 'Tamanho mínimo (GiB) do release (filtra coisas muito pequenas).',
-    en: 'Minimum release size (GiB).'
+    en: 'Minimum release size (GiB).',
   },
   MAX_GIB: {
     pt: 'Tamanho máximo (GiB) do release.',
-    en: 'Maximum release size (GiB).'
+    en: 'Maximum release size (GiB).',
   },
   MAX_TORRENTS: {
     pt: 'Máximo de releases mantidos por filme no cache.',
-    en: 'Max releases kept per movie in the cache.'
+    en: 'Max releases kept per movie in the cache.',
   },
   HD_ONLY: {
     pt: 'Se true, prioriza só 1080p/2160p quando existir pelo menos um HD.',
-    en: 'If true, keep only 1080p/2160p releases when any exist.'
+    en: 'If true, keep only 1080p/2160p releases when any exist.',
   },
   ENGLISH_TITLE_ONLY: {
     pt: 'Se true, exige que o título do release bata com o título do Letterboxd (tokens).',
-    en: 'If true, require release title to match the Letterboxd title (token-based).'
+    en: 'If true, require release title to match the Letterboxd title (token-based).',
   },
   EXCLUDE_TERMS: {
     pt: 'Termos para excluir do título do release (separados por vírgula).',
-    en: 'Comma-separated terms to exclude from release titles.'
+    en: 'Comma-separated terms to exclude from release titles.',
   },
   DEDUPE_SIZE_BUCKET_GIB: {
-    pt: 'Bucket (GiB) para deduplicação por tamanho.',
-    en: 'Size bucket (GiB) for de-duplication.'
+    pt: 'Bucket (GiB) para deduplicação por tamanho (agrupar releases muito parecidos e manter só 1).',
+    en: 'Size bucket (GiB) for de-duplication (group similar releases and keep only one).',
   },
   CONCURRENCY: {
     pt: 'Quantas buscas no Prowlarr em paralelo.',
-    en: 'How many Prowlarr searches in parallel.'
+    en: 'How many Prowlarr searches in parallel.',
   },
   PROWLARR_TIMEOUT_MS: {
     pt: 'Timeout (ms) das requisições ao Prowlarr.',
-    en: 'Prowlarr request timeout (ms).'
+    en: 'Prowlarr request timeout (ms).',
   },
   CACHE_FILE: {
     pt: 'Arquivo JSON do cache.',
-    en: 'Cache JSON file.'
+    en: 'Cache JSON file.',
   },
   REWRITE_CACHE: {
     pt: 'Se true, reescreve o cache do filme mesmo se já existir.',
-    en: 'If true, rewrite a movie cache entry even if it already exists.'
+    en: 'If true, rewrite a movie cache entry even if it already exists.',
   },
   MAX_NEW_MOVIES_PER_RUN: {
     pt: 'Limite de filmes novos adicionados ao cache por execução.',
-    en: 'Limit how many new movies can be added per run.'
+    en: 'Limit how many new movies can be added per run.',
   },
   LETTERBOXD_LIST_URL: {
     pt: 'URL da lista do Letterboxd (usado quando você roda o cli.js sem argumento).',
-    en: 'Letterboxd list URL (used when running cli.js without args).'
+    en: 'Letterboxd list URL (used when running cli.js without args).',
   },
   EXECUTE_DEBRID: {
-    pt: 'Se true, o cli.js roda o debrid-cli.js automaticamente após finalizar.',
-    en: 'If true, cli.js runs debrid-cli.js automatically after finishing.'
+    pt: 'Se true, o cli.js roda o debrid-cli.js automaticamente após finalizar (manda torrents pro Real-Debrid e tenta finalizar download/import).',
+    en: 'If true, cli.js runs debrid-cli.js after finishing (send torrents to Real-Debrid and try to finalize download/import).',
   },
   AUTO_DOWNLOAD: {
-    pt: 'Se true, baixa automaticamente quando o torrent fica downloaded.',
-    en: 'If true, auto-download when a torrent becomes downloaded.'
+    pt: 'Se true, baixa automaticamente quando o torrent termina de ser cacheado no Real-Debrid.',
+    en: 'If true, auto-download when the torrent finishes caching on Real-Debrid.',
   },
   AUTO_DOWNLOAD_DEST_DIR: {
-    pt: 'Pasta final da sua biblioteca de filmes (destino).',
-    en: 'Final movies library folder (destination).'
+    pt: 'Pasta final da sua biblioteca de filmes (destino). Se integrar com Plex, use a mesma pasta da biblioteca de Filmes do Plex.',
+    en: 'Final movies library folder (destination). If integrating with Plex, use the same Movies library folder Plex is watching.',
   },
   AUTO_DOWNLOAD_STAGING_DIR: {
-    pt: 'Pasta temporária de staging (fora da biblioteca do Plex).',
-    en: 'Temporary staging folder (keep outside Plex library).'
+    pt: 'Pasta temporária de staging (fora da biblioteca do Plex). (default: staging downloads)',
+    en: 'Temporary staging folder (keep outside Plex library). (default: staging downloads)',
   },
   SEVEN_ZIP_PATH: {
     pt: 'Caminho do 7z (principalmente no Windows) para extrair .rar.',
-    en: 'Path to 7z binary (mainly on Windows) to extract .rar.'
+    en: 'Path to 7z binary (mainly on Windows) to extract .rar.',
   },
   DIR_NAME_MOVIE_ONLY: {
     pt: 'Se true, a pasta do filme fica só com o nome (sem ano/tmdb).',
-    en: 'If true, movie folder name is only the title (no year/tmdb).'
+    en: 'If true, movie folder name is only the title (no year/tmdb).',
   },
   AUTO_DOWNLOAD_REUSE_STAGING: {
     pt: 'Se true, reaproveita staging se uma execução anterior foi interrompida.',
-    en: 'If true, reuse staging if a previous run was interrupted.'
+    en: 'If true, reuse staging if a previous run was interrupted.',
   },
   PLEX_BASE_URL: {
     pt: 'Base URL do Plex (ex.: http://127.0.0.1:32400).',
-    en: 'Plex base URL (e.g. http://127.0.0.1:32400).'
+    en: 'Plex base URL (e.g. http://127.0.0.1:32400).',
   },
   PLEX_TOKEN: {
     pt: 'Token do Plex.',
-    en: 'Plex token.'
+    en: 'Plex token.',
   },
   PLEX_SECTION_ID_FILMES: {
-    pt: 'ID da biblioteca/section de Filmes no Plex.',
-    en: 'Plex Movies library section id.'
+    pt: 'ID da biblioteca/section de Filmes no Plex (se você só tiver uma biblioteca, provavelmente será 1).',
+    en: 'Plex Movies library section id (if you only have one library, it is likely 1).',
   },
   PLEX_REFRESH_AFTER_DOWNLOAD: {
-    pt: 'Se true, dá refresh no Plex após auto-download.',
-    en: 'If true, refresh Plex after auto-download.'
+    pt: 'Se true, dá refresh no Plex após o auto-download finalizar.',
+    en: 'If true, refresh Plex after auto-download.',
   },
   RADARR_BASE_URL: {
-    pt: 'Base URL do Radarr (ex.: http://127.0.0.1:7878).',
-    en: 'Radarr base URL (e.g. http://127.0.0.1:7878).'
+    pt: 'Base URL do Radarr (ex.: http://127.0.0.1:7878). Necessário se você quer que o Bazarr baixe legendas via Radarr.',
+    en: 'Radarr base URL (e.g. http://127.0.0.1:7878). Useful if you want Bazarr to fetch subtitles via Radarr.',
   },
   RADARR_API_KEY: {
     pt: 'API key do Radarr.',
-    en: 'Radarr API key.'
+    en: 'Radarr API key.',
   },
   RADARR_QUALITY_PROFILE_ID: {
-    pt: 'ID do quality profile no Radarr.',
-    en: 'Radarr quality profile id.'
+    pt: 'ID do quality profile no Radarr (se você não sabe o que está fazendo, mantenha o default).',
+    en: 'Radarr quality profile id (keep the default if you are not sure).',
   },
   RADARR_ROOT_FOLDER_PATH: {
-    pt: 'Pasta raiz de filmes no Radarr.',
-    en: 'Radarr root folder path.'
+    pt: 'Pasta raiz de filmes no Radarr. Se integrar com Plex, use a mesma pasta da biblioteca de Filmes do Plex.',
+    en: 'Radarr root folder path. If integrating with Plex, use the same Movies library folder Plex is watching.',
   },
   RADARR_IMPORT_AFTER_DOWNLOAD: {
-    pt: 'Se true, importa o filme no Radarr após baixar.',
-    en: 'If true, import the movie into Radarr after download.'
+    pt: 'Se true, importa o filme no Radarr após baixar. Para o Bazarr baixar legendas automaticamente via Radarr, isso precisa estar true.',
+    en: 'If true, import the movie into Radarr after download. If you want Bazarr to fetch subtitles via Radarr, this should be true.',
   },
   LOGS_ENABLED: {
     pt: 'Se true, grava logs diários em ./logs.',
-    en: 'If true, append daily logs under ./logs.'
+    en: 'If true, append daily logs under ./logs.',
   },
   LOGS_RETENTION_DAYS: {
     pt: 'Quantos dias manter de logs (contando hoje).',
-    en: 'How many log days to keep (counting today).'
+    en: 'How many log days to keep (counting today).',
   },
   CRON_CLI_EVERY_MIN: {
     pt: 'Intervalo (min) para rodar o cli.js via cron/task scheduler.',
-    en: 'Interval (min) to run cli.js via cron/task scheduler.'
+    en: 'Interval (min) to run cli.js via cron/task scheduler.',
   },
   CRON_MONITOR_AFTER_CLI_MIN: {
     pt: 'Quantos minutos após o cli.js rodar para rodar o debrid-monitor.js.',
-    en: 'How many minutes after cli.js to run debrid-monitor.js.'
+    en: 'How many minutes after cli.js to run debrid-monitor.js.',
   },
   OUTPUT_JSON: {
-    pt: 'Se 1, imprime JSON detalhado ao final (quando suportado).',
-    en: 'If 1, print detailed JSON at the end (when supported).'
+    pt: 'Se true/false, imprime um JSON mais detalhado ao final (quando suportado).',
+    en: 'If true/false, print a more detailed JSON at the end (when supported).',
   }
 };
 
@@ -392,11 +392,71 @@ async function main() {
       if (help) {
         output.write(`${help}\n`);
       }
+
+      // Standardized hint line: required/optional + default
+      const requiredBase = (key === 'PROWLARR_API_KEY' || key === 'LETTERBOXD_LIST_URL');
+      const hintStatus = tr.lang === 'pt' ? (requiredBase ? 'Obrigatório' : 'Opcional') : (requiredBase ? 'Required' : 'Optional');
+      const hintDefault = maskIfSecret(key, defaultVal);
+      if (tr.lang === 'pt') {
+        output.write(`Status: ${hintStatus}. Default: ${hintDefault || '(vazio)'}\n`);
+      } else {
+        output.write(`Status: ${hintStatus}. Default: ${hintDefault || '(empty)'}\n`);
+      }
+
       const shown = maskIfSecret(key, defaultVal);
       const q = `${tr.varPrompt} [${shown}]: `;
       const raw = await rl.question(q);
       const a = normalizeAnswer(raw);
       answers[key] = a ? a : defaultVal;
+    }
+
+    // Conditional required fields (based on chosen feature flags)
+    const isTrue = (v) => v === '1' || String(v || '').toLowerCase() === 'true';
+    const isBlank = (v) => {
+      const s = String(v ?? '').trim();
+      return !s || s === '""' || s === "''";
+    };
+
+    const requireKeys = new Map();
+    requireKeys.set('PROWLARR_API_KEY', tr.lang === 'pt' ? 'sempre necessário para buscar no Prowlarr' : 'always required to query Prowlarr');
+    requireKeys.set('LETTERBOXD_LIST_URL', tr.lang === 'pt' ? 'necessário para o projeto saber qual lista do Letterboxd usar' : 'required so the project knows which Letterboxd list to use');
+
+    const executeDebrid = isTrue(answers.EXECUTE_DEBRID);
+    const autoDownload = isTrue(answers.AUTO_DOWNLOAD);
+    const plexRefresh = isTrue(answers.PLEX_REFRESH_AFTER_DOWNLOAD);
+    const radarrImport = isTrue(answers.RADARR_IMPORT_AFTER_DOWNLOAD);
+
+    if (executeDebrid || autoDownload) {
+      requireKeys.set('REALDEBRID_URL', tr.lang === 'pt' ? 'necessário porque você habilitou debrid/auto-download' : 'required because debrid/auto-download is enabled');
+      requireKeys.set('REALDEBRID_API_KEY', tr.lang === 'pt' ? 'necessário porque você habilitou debrid/auto-download' : 'required because debrid/auto-download is enabled');
+    }
+
+    if (autoDownload) {
+      requireKeys.set('AUTO_DOWNLOAD_DEST_DIR', tr.lang === 'pt' ? 'necessário porque AUTO_DOWNLOAD=true' : 'required because AUTO_DOWNLOAD=true');
+    }
+
+    if (plexRefresh) {
+      requireKeys.set('PLEX_BASE_URL', tr.lang === 'pt' ? 'necessário porque PLEX_REFRESH_AFTER_DOWNLOAD=true' : 'required because PLEX_REFRESH_AFTER_DOWNLOAD=true');
+      requireKeys.set('PLEX_TOKEN', tr.lang === 'pt' ? 'necessário porque PLEX_REFRESH_AFTER_DOWNLOAD=true' : 'required because PLEX_REFRESH_AFTER_DOWNLOAD=true');
+      requireKeys.set('PLEX_SECTION_ID_FILMES', tr.lang === 'pt' ? 'necessário porque PLEX_REFRESH_AFTER_DOWNLOAD=true' : 'required because PLEX_REFRESH_AFTER_DOWNLOAD=true');
+    }
+
+    if (radarrImport) {
+      requireKeys.set('RADARR_BASE_URL', tr.lang === 'pt' ? 'necessário porque RADARR_IMPORT_AFTER_DOWNLOAD=true' : 'required because RADARR_IMPORT_AFTER_DOWNLOAD=true');
+      requireKeys.set('RADARR_API_KEY', tr.lang === 'pt' ? 'necessário porque RADARR_IMPORT_AFTER_DOWNLOAD=true' : 'required because RADARR_IMPORT_AFTER_DOWNLOAD=true');
+      requireKeys.set('RADARR_ROOT_FOLDER_PATH', tr.lang === 'pt' ? 'necessário porque RADARR_IMPORT_AFTER_DOWNLOAD=true' : 'required because RADARR_IMPORT_AFTER_DOWNLOAD=true');
+      requireKeys.set('RADARR_QUALITY_PROFILE_ID', tr.lang === 'pt' ? 'necessário porque RADARR_IMPORT_AFTER_DOWNLOAD=true' : 'required because RADARR_IMPORT_AFTER_DOWNLOAD=true');
+    }
+
+    for (const [k, because] of requireKeys.entries()) {
+      while (isBlank(answers[k])) {
+        output.write(`\n${tr.lang === 'pt' ? 'Campo obrigatório' : 'Required field'}: ${k} (${because})\n`);
+        const help = HELP?.[k]?.[tr.lang] || '';
+        if (help) output.write(`${help}\n`);
+        const raw = await rl.question(`${tr.varPrompt} []: `);
+        const a = normalizeAnswer(raw);
+        if (a) answers[k] = a;
+      }
     }
 
     const headerLines = [

@@ -130,7 +130,7 @@ export async function runAutoDownload({
       : (y ? `${safeDirName(movieTitle)}-${y}` : safeDirName(movieTitle)));
 
   // Stage downloads outside Plex library, then move into the final library folder.
-  const stagingBase = process.env.AUTO_DOWNLOAD_STAGING_DIR || path.join(projectRootDir(), 'Downloads');
+  const stagingBase = process.env.AUTO_DOWNLOAD_STAGING_DIR || path.join(projectRootDir(), 'staging downloads');
   const stagingDir = path.join(stagingBase, folderName);
 
   const movieDestDir = `${String(destDir).replace(/\/+$/, '')}/${folderName}`;
