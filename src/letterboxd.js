@@ -8,7 +8,7 @@ import * as cheerio from 'cheerio';
 export async function fetchLetterboxdListMovies(listUrl) {
   const { data: html } = await axios.get(listUrl, {
     headers: {
-      'User-Agent': 'torrent-auto-crawlerr/0.1 (+https://local)'
+      'User-Agent': 'kimberly/0.1 (+https://local)'
     },
     // Letterboxd uses gzip/br; axios handles.
     timeout: 30_000

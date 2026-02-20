@@ -1,4 +1,4 @@
-# torrent-auto-crawlerr
+# kimberly
 
 ## Table of contents
 
@@ -95,7 +95,7 @@ Within the same priority:
 
 ```bash
 git clone <repo-url>
-cd torrent-auto-crawlerr
+cd kimberly
 ```
 
 2) Install dependencies
@@ -143,7 +143,7 @@ If you will use debrid:
 npm link
 ```
 
-This creates commands like `torrent-auto-crawlerr` / `torrent-auto-crawlerr-debrid` in your PATH.
+This creates commands like `kimberly` / `kimberly-debrid` in your PATH.
 
 </details>
 
@@ -648,31 +648,31 @@ In this case there is **no `.torrent` file to download**. The `cli.js` logic con
 
 ## Download a file by URL (zip/mp4/mkv)
 
-Command: `torrent-auto-crawlerr-download`
+Command: `kimberly-download`
 
 ```bash
 # Download a video
- torrent-auto-crawlerr-download --url "https://example.com/video.mkv" --dest "/path/to/Downloads"
+ kimberly-download --url "https://example.com/video.mkv" --dest "/path/to/Downloads"
 
 # Download a .zip and extract to destination
- torrent-auto-crawlerr-download --url "https://example.com/subs.zip" --dest "/path/to/Downloads" --unzip
+ kimberly-download --url "https://example.com/subs.zip" --dest "/path/to/Downloads" --unzip
 
 # Extract and delete the .zip
- torrent-auto-crawlerr-download --url "https://example.com/subs.zip" --dest "/path/to/Downloads" --unzip --delete-zip-after
+ kimberly-download --url "https://example.com/subs.zip" --dest "/path/to/Downloads" --unzip --delete-zip-after
 ```
 
 ## Import a .torrent and fill torrent_path
 
-Command: `torrent-auto-crawlerr-torrent-import`
+Command: `kimberly-torrent-import`
 
 ```bash
 # Import from a local file
- torrent-auto-crawlerr-torrent-import --movie "phantom of the paradise" \
+ kimberly-torrent-import --movie "phantom of the paradise" \
   --torrent "Phantom of the Paradise 1974 1080p BluRay x265-RARBG" \
   --file "/path/to/file.torrent"
 
 # Import from an HTTP URL
- torrent-auto-crawlerr-torrent-import --movie "phantom of the paradise" \
+ kimberly-torrent-import --movie "phantom of the paradise" \
   --torrent "Phantom of the Paradise 1974 1080p BluRay x265-RARBG" \
   --url "https://example.com/file.torrent"
 ```

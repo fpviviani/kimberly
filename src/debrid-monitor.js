@@ -7,7 +7,7 @@ import path from 'node:path';
 import { initDailyLogger } from './logging.js';
 
 function usage() {
-  console.log('Usage: torrent-auto-crawlerr-debrid-monitor');
+  console.log('Usage: kimberly-debrid-monitor');
   console.log('Env: REALDEBRID_URL required');
   process.exit(2);
 }

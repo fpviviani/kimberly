@@ -212,8 +212,8 @@ if (!listUrl && !moviesFromArg) {
 
 if (!listUrl && !moviesFromArg) {
   console.error('Usage:');
-  console.error('  torrent-auto-crawlerr <letterboxd_list_url>');
-  console.error('  torrent-auto-crawlerr --movies "[\\"Title - 1999\\", \\"Other - 2001\\"]"');
+  console.error('  kimberly <letterboxd_list_url>');
+  console.error('  kimberly --movies "[\\"Title - 1999\\", \\"Other - 2001\\"]"');
   console.error('Env: LETTERBOXD_LIST_URL (fallback), PROWLARR_URL (default http://localhost:9696), PROWLARR_API_KEY (required), MAX_GIB (default 10)');
   process.exit(2);
 }

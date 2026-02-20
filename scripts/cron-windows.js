@@ -35,8 +35,8 @@ function main() {
   const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
   const logsDir = path.join(projectRoot, 'logs');
 
-  const taskCli = 'torrent-auto-crawlerr-cli';
-  const taskMon = 'torrent-auto-crawlerr-monitor';
+  const taskCli = 'kimberly-cli';
+  const taskMon = 'kimberly-monitor';
 
   if (action === 'remove') {
     try { run(`schtasks /Delete /TN "${taskCli}" /F`); } catch {}

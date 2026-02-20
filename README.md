@@ -1,4 +1,4 @@
-# torrent-auto-crawlerr
+# kimberly
 
 ## Sumário
 
@@ -95,7 +95,7 @@ Dentro da mesma prioridade:
 
 ```bash
 git clone <repo-url>
-cd torrent-auto-crawlerr
+cd kimberly
 ```
 
 2) Instale as dependências
@@ -143,7 +143,7 @@ Se você vai usar debrid:
 npm link
 ```
 
-Isso cria comandos como `torrent-auto-crawlerr` / `torrent-auto-crawlerr-debrid` no seu PATH.
+Isso cria comandos como `kimberly` / `kimberly-debrid` no seu PATH.
 
 </details>
 
@@ -650,31 +650,31 @@ Nesse caso **não existe** arquivo `.torrent` para baixar. A lógica do `cli.js`
 
 ## Baixar um arquivo por URL (zip/mp4/mkv)
 
-Comando: `torrent-auto-crawlerr-download`
+Comando: `kimberly-download`
 
 ```bash
 # Baixar um vídeo
- torrent-auto-crawlerr-download --url "https://example.com/video.mkv" --dest "/path/to/Downloads"
+ kimberly-download --url "https://example.com/video.mkv" --dest "/path/to/Downloads"
 
 # Baixar um .zip e extrair no destino
- torrent-auto-crawlerr-download --url "https://example.com/subs.zip" --dest "/path/to/Downloads" --unzip
+ kimberly-download --url "https://example.com/subs.zip" --dest "/path/to/Downloads" --unzip
 
 # Extrair e deletar o .zip
- torrent-auto-crawlerr-download --url "https://example.com/subs.zip" --dest "/path/to/Downloads" --unzip --delete-zip-after
+ kimberly-download --url "https://example.com/subs.zip" --dest "/path/to/Downloads" --unzip --delete-zip-after
 ```
 
 ## Importar um .torrent e preencher torrent_path
 
-Comando: `torrent-auto-crawlerr-torrent-import`
+Comando: `kimberly-torrent-import`
 
 ```bash
 # Importar de um arquivo local
- torrent-auto-crawlerr-torrent-import --movie "phantom of the paradise" \
+ kimberly-torrent-import --movie "phantom of the paradise" \
   --torrent "Phantom of the Paradise 1974 1080p BluRay x265-RARBG" \
   --file "/path/to/file.torrent"
 
 # Importar de uma URL HTTP
- torrent-auto-crawlerr-torrent-import --movie "phantom of the paradise" \
+ kimberly-torrent-import --movie "phantom of the paradise" \
   --torrent "Phantom of the Paradise 1974 1080p BluRay x265-RARBG" \
   --url "https://example.com/file.torrent"
 ```

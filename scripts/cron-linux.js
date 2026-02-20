@@ -31,8 +31,8 @@ function setCrontab(text) {
 }
 
 function stripBlock(text) {
-  const begin = '# torrent-auto-crawlerr BEGIN';
-  const end = '# torrent-auto-crawlerr END';
+  const begin = '# kimberly BEGIN';
+  const end = '# kimberly END';
   const lines = String(text || '').split(/\r?\n/);
   const out = [];
   let inBlock = false;
@@ -65,7 +65,7 @@ function main() {
 
   if (action === 'remove') {
     setCrontab(base);
-    console.log('Removed torrent-auto-crawlerr cron block.');
+    console.log('Removed kimberly cron block.');
     return;
   }
 
@@ -83,19 +83,19 @@ function main() {
     : `/usr/bin/env node src/debrid-monitor.js`;
 
   const block = [
-    '# torrent-auto-crawlerr BEGIN',
+    '# kimberly BEGIN',
     `# cli every ${every} min; monitor ${after} min after (offset=${offset}); useDocker=${useDocker}`,
     `SHELL=/bin/bash`,
     `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`,
     `${cliMinutes} * * * * cd ${projectRoot} && mkdir -p ${logsDir} && ${cliCmd} >> ${logsDir}/cron-cli.log 2>&1`,
     `${monMinutes} * * * * cd ${projectRoot} && mkdir -p ${logsDir} && ${monCmd} >> ${logsDir}/cron-monitor.log 2>&1`,
-    '# torrent-auto-crawlerr END',
+    '# kimberly END',
     ''
   ].join('\n');
 
   const next = (base + '\n' + block).replace(/\n{3,}/g, '\n\n');
   setCrontab(next);
-  console.log('Installed torrent-auto-crawlerr cron block.');
+  console.log('Installed kimberly cron block.');
   console.log(`- cli minutes: ${cliMinutes}`);
   console.log(`- monitor minutes: ${monMinutes}`);
 }

@@ -8,7 +8,7 @@ import { defaultCachePath, loadCache, saveCache, patchCachedTorrent, getCachedMo
 
 function usage() {
   console.log('Usage:');
-  console.log('  torrent-auto-crawlerr-torrent-import --movie "Movie Title" --torrent "Torrent Title" (--url <http-url> | --file </path/file.torrent>)');
+  console.log('  kimberly-torrent-import --movie "Movie Title" --torrent "Torrent Title" (--url <http-url> | --file </path/file.torrent>)');
   console.log('Options:');
   console.log('  --out <name.torrent>    Optional output filename under torrents/ (default: slug+hash.torrent)');
   console.log('  --cache <path>          Optional cache file path (default: CACHE_FILE env or cache.json)');

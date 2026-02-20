@@ -1,5 +1,5 @@
 {
-  "name": "torrent-auto-crawlerr",
+  "name": "kimberly",
   "version": "0.1.0",
   "main": "index.js",
   "scripts": {
@@ -16,11 +16,11 @@
   "description": "Fetch Letterboxd list, query Prowlarr, output magnet URLs <10GB",
   "type": "module",
   "bin": {
-    "torrent-auto-crawlerr": "./src/cli.js",
-    "torrent-auto-crawlerr-debrid": "./src/debrid-cli.js",
-    "torrent-auto-crawlerr-torrent-import": "./src/tools/torrent-import.js",
-    "torrent-auto-crawlerr-download": "./src/tools/download-file.js",
-    "torrent-auto-crawlerr-debrid-monitor": "./src/debrid-monitor.js"
+    "kimberly": "./src/cli.js",
+    "kimberly-debrid": "./src/debrid-cli.js",
+    "kimberly-torrent-import": "./src/tools/torrent-import.js",
+    "kimberly-download": "./src/tools/download-file.js",
+    "kimberly-debrid-monitor": "./src/debrid-monitor.js"
   },
   "dependencies": {
     "axios": "^1.13.4",

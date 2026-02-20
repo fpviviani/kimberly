@@ -10,15 +10,15 @@ import { spawn } from 'node:child_process';
 
 function usage() {
   console.log('Usage:');
-  console.log('  torrent-auto-crawlerr-download --url <http(s)://...> --dest <dir> [--name <filename>] [--unpack]');
+  console.log('  kimberly-download --url <http(s)://...> --dest <dir> [--name <filename>] [--unpack]');
   console.log('');
   console.log('Notes:');
   console.log('  --unpack extracts .zip or .rar into --dest');
   console.log('  After unpack, any .srt found inside subfolders is moved up into --dest');
   console.log('');
   console.log('Examples:');
-  console.log('  torrent-auto-crawlerr-download --url "https://example.com/video.mp4" --dest "/path/to/Downloads"');
-  console.log('  torrent-auto-crawlerr-download --url "https://example.com/subs.rar" --dest "/path/to/Downloads" --unpack --delete-archive-after');
+  console.log('  kimberly-download --url "https://example.com/video.mp4" --dest "/path/to/Downloads"');
+  console.log('  kimberly-download --url "https://example.com/subs.rar" --dest "/path/to/Downloads" --unpack --delete-archive-after');
   process.exit(2);
 }
 
@@ -50,7 +50,7 @@ async function downloadToFile(url, outPath) {
   const resp = await axios.get(url, {
     responseType: 'stream',
     timeout: 120_000,
-    headers: { 'User-Agent': 'torrent-auto-crawlerr-download/0.1' }
+    headers: { 'User-Agent': 'kimberly-download/0.1' }
   });
   await pipeline(resp.data, createWriteStream(outPath));
   return {

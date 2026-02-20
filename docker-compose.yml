@@ -3,7 +3,7 @@ version: "3.8"
 services:
   crawler-setup:
     build: .
-    container_name: torrent-auto-crawlerr-crawler-setup
+    container_name: kimberly-crawler-setup
     restart: "no"
     env_file:
       - ./.env
@@ -14,7 +14,7 @@ services:
 
   crawler-cli:
     build: .
-    container_name: torrent-auto-crawlerr-crawler-cli
+    container_name: kimberly-crawler-cli
     restart: "no"
     depends_on:
       - prowlarr
@@ -40,7 +40,7 @@ services:
 
   crawler-monitor:
     build: .
-    container_name: torrent-auto-crawlerr-crawler-monitor
+    container_name: kimberly-crawler-monitor
     restart: "no"
     depends_on:
       - prowlarr
@@ -66,7 +66,7 @@ services:
 
   caddy:
     image: caddy:2
-    container_name: torrent-auto-crawlerr-caddy
+    container_name: kimberly-caddy
     restart: unless-stopped
     ports:
       - "80:80"
@@ -83,7 +83,7 @@ services:
 
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
-    container_name: torrent-auto-crawlerr-prowlarr
+    container_name: kimberly-prowlarr
     restart: unless-stopped
     environment:
       - PUID=${PUID:-1000}
@@ -98,7 +98,7 @@ services:
 
   radarr:
     image: lscr.io/linuxserver/radarr:latest
-    container_name: torrent-auto-crawlerr-radarr
+    container_name: kimberly-radarr
     restart: unless-stopped
     environment:
       - PUID=${PUID:-1000}
@@ -114,7 +114,7 @@ services:
 
   bazarr:
     image: lscr.io/linuxserver/bazarr:latest
-    container_name: torrent-auto-crawlerr-bazarr
+    container_name: kimberly-bazarr
     restart: unless-stopped
     environment:
       - PUID=${PUID:-1000}
@@ -130,4 +130,4 @@ services:
 
 networks:
   media:
-    name: torrent-auto-crawlerr-media
+    name: kimberly-media
