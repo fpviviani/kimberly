@@ -49,8 +49,18 @@ function main() {
   const startCli = toHHMM(addMinutes(now, 1));
   const startMon = toHHMM(addMinutes(now, 1 + after));
 
-  const cmdCli = `cmd.exe /c "cd /d \"${projectRoot}\" && if not exist \"${logsDir}\" mkdir \"${logsDir}\" && node src\\cli.js >> \"${logsDir}\\cron-cli.log\" 2>&1"`;
-  const cmdMon = `cmd.exe /c "cd /d \"${projectRoot}\" && if not exist \"${logsDir}\" mkdir \"${logsDir}\" && node src\\debrid-monitor.js >> \"${logsDir}\\cron-monitor.log\" 2>&1"`;
+  const useDocker = (process.env.CRON_USE_DOCKER || '0') === '1' || String(process.env.CRON_USE_DOCKER || '').toLowerCase() === 'true';
+
+  const cliInner = useDocker
+    ? `docker compose run --rm crawler-cli`
+    : `node src\\cli.js`;
+
+  const monInner = useDocker
+    ? `docker compose run --rm crawler-monitor`
+    : `node src\\debrid-monitor.js`;
+
+  const cmdCli = `cmd.exe /c "cd /d \"${projectRoot}\" && if not exist \"${logsDir}\" mkdir \"${logsDir}\" && ${cliInner} >> \"${logsDir}\\cron-cli.log\" 2>&1"`;
+  const cmdMon = `cmd.exe /c "cd /d \"${projectRoot}\" && if not exist \"${logsDir}\" mkdir \"${logsDir}\" && ${monInner} >> \"${logsDir}\\cron-monitor.log\" 2>&1"`;
 
   // Create/replace tasks
   try { run(`schtasks /Delete /TN "${taskCli}" /F`); } catch {}

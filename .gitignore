@@ -24,3 +24,7 @@ staging downloads/*
 /docker/config/**
 !/docker/config/**/.gitkeep
 /docker/caddy/**
+
+# crawler runtime state when using docker
+/data/*
+!/data/.gitkeep

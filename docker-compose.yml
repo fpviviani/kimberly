@@ -1,6 +1,58 @@
 version: "3.8"
 
 services:
+  crawler-cli:
+    build: .
+    container_name: torrent-auto-crawlerr-crawler-cli
+    restart: "no"
+    depends_on:
+      - prowlarr
+      - radarr
+      - bazarr
+    environment:
+      - PROWLARR_URL=http://prowlarr:9696
+      - RADARR_BASE_URL=http://radarr:7878
+      - AUTO_DOWNLOAD_DEST_DIR=/movies
+      - AUTO_DOWNLOAD_STAGING_DIR=/staging
+      - CACHE_FILE=/data/cache.json
+    env_file:
+      - ./.env
+    volumes:
+      - ${AUTO_DOWNLOAD_DEST_DIR:?Set AUTO_DOWNLOAD_DEST_DIR in .env}:/movies
+      - ./staging downloads:/staging
+      - ./torrents:/app/torrents
+      - ./logs:/app/logs
+      - ./data:/data
+    networks:
+      - media
+    command: ["node","src/cli.js"]
+
+  crawler-monitor:
+    build: .
+    container_name: torrent-auto-crawlerr-crawler-monitor
+    restart: "no"
+    depends_on:
+      - prowlarr
+      - radarr
+      - bazarr
+    environment:
+      - PROWLARR_URL=http://prowlarr:9696
+      - RADARR_BASE_URL=http://radarr:7878
+      - AUTO_DOWNLOAD_DEST_DIR=/movies
+      - AUTO_DOWNLOAD_STAGING_DIR=/staging
+      - CACHE_FILE=/data/cache.json
+    env_file:
+      - ./.env
+    volumes:
+      - ${AUTO_DOWNLOAD_DEST_DIR:?Set AUTO_DOWNLOAD_DEST_DIR in .env}:/movies
+      - ./staging downloads:/staging
+      - ./torrents:/app/torrents
+      - ./logs:/app/logs
+      - ./data:/data
+    networks:
+      - media
+    command: ["node","src/debrid-monitor.js"]
+
   caddy:
     image: caddy:2
     container_name: torrent-auto-crawlerr-caddy

@@ -11,23 +11,33 @@ Um projeto de automação em Node.js que:
 
 ## Pré-requisitos
 
-### Obrigatórios
+### Se você vai usar Docker (recomendado)
+
+- **Docker + Docker Compose**
+- **Uma lista no Letterboxd** (URL tipo `https://boxd.it/xxxx`)
+- **Conta no Real-Debrid** (se você vai usar `EXECUTE_DEBRID`/auto-download)
+
+> Com Docker, você não precisa instalar Prowlarr/Radarr/Bazarr/Node manualmente — o `docker compose up -d` sobe tudo.
+
+### Se você NÃO vai usar Docker (instalação manual)
 
 - **Node.js 18+**
 - **Prowlarr** instalado e rodando (default: `http://localhost:9696`)
+  - site: https://prowlarr.com
   - você precisa da **API key do Prowlarr** (`PROWLARR_API_KEY`)
+- **Radarr** (opcional, mas recomendado se você usa Bazarr)
+  - site: https://radarr.video
+- **Bazarr** (opcional)
+  - site: https://www.bazarr.media
 - **Uma lista no Letterboxd** (URL tipo `https://boxd.it/xxxx`)
   - você pode passar por argumento ou setar `LETTERBOXD_LIST_URL` no `.env`
 - **Conta no Real-Debrid** (para `debrid-cli`/`monitor` e auto-download)
   - você precisa do token em `REALDEBRID_API_KEY` e da base `REALDEBRID_URL`
 
-### Opcionais
+### Opcionais (nos dois casos)
 
 - **Plex** (para refresh automático após baixar/importar)
   - requer `PLEX_TOKEN` e `PLEX_SECTION_ID_FILMES`
-- **Radarr** (para importar no Radarr após download/import manual)
-  - requer `RADARR_API_KEY`
-- **Bazarr** (não é usado diretamente pelo script; mas faz sentido ter se você quer legendas automáticas via Radarr/Plex)
 - **7-Zip (`7z`)** instalado no sistema
   - só é necessário se você usa `AUTO_DOWNLOAD` e o Real-Debrid devolver arquivos `.rar` (extração via `7z x`)
 
@@ -87,12 +97,22 @@ Pré-requisito: Docker + Docker Compose.
 
 ### Subir o stack
 
-1) Configure o `.env` (no mínimo `AUTO_DOWNLOAD_DEST_DIR` e `PROWLARR_API_KEY`)
+1) Configure o `.env` (no mínimo `AUTO_DOWNLOAD_DEST_DIR`, `LETTERBOXD_LIST_URL` e `PROWLARR_API_KEY`)
 
-2) Suba:
+2) Suba os serviços (GUIs + proxy):
 
 ```bash
 docker compose up -d
+```
+
+3) Rodar o crawler (sem instalar Node no host):
+
+```bash
+# roda cli.js (e se EXECUTE_DEBRID=true, ele chama debrid-cli dentro do próprio container)
+docker compose run --rm crawler-cli
+
+# roda o monitor
+docker compose run --rm crawler-monitor
 ```
 
 ### Acessar as GUIs
@@ -150,6 +170,7 @@ npm run cron:windows
 ```
 
 Isso usa as variáveis do `.env`:
+- `CRON_USE_DOCKER` (default false): se true, o agendamento chama `docker compose run --rm ...`
 - `CRON_CLI_EVERY_MIN` (default 20)
 - `CRON_MONITOR_AFTER_CLI_MIN` (default 10)
 

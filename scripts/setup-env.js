@@ -232,6 +232,10 @@ const HELP = {
     pt: 'Quantos dias manter de logs (contando hoje).',
     en: 'How many log days to keep (counting today).',
   },
+  CRON_USE_DOCKER: {
+    pt: 'Se true/1, o cron/tasks chama docker compose (em vez de executar node direto).',
+    en: 'If true/1, cron/tasks runs docker compose (instead of running node directly).',
+  },
   CRON_CLI_EVERY_MIN: {
     pt: 'Intervalo (min) para rodar o cli.js via cron/task scheduler.',
     en: 'Interval (min) to run cli.js via cron/task scheduler.',
@@ -382,10 +386,27 @@ async function main() {
 
     const answers = {};
 
+    // Ask if the user will use Docker (sets CRON_USE_DOCKER default)
+    {
+      const q = tr.lang === 'pt'
+        ? 'Você pretende usar Docker para rodar o stack (Prowlarr/Radarr/Bazarr e o crawler)?\nVantagens: não precisa instalar Node/Prowlarr/Radarr/Bazarr manualmente; tudo sobe com docker compose.\nUsar Docker? (s/N): '
+        : 'Will you use Docker to run the stack (Prowlarr/Radarr/Bazarr and the crawler)?\nPros: no need to install Node/Prowlarr/Radarr/Bazarr manually; everything comes up with docker compose.\nUse Docker? (y/N): ';
+      const ans = await rl.question(`\n${q}`);
+      const a = String(ans || '').trim().toLowerCase();
+      const yes = tr.lang === 'pt' ? (a === 's' || a === 'sim' || a === 'y' || a === 'yes') : (a === 'y' || a === 'yes' || a === 's' || a === 'sim');
+      // Default: false (no)
+      answers.CRON_USE_DOCKER = yes ? 'true' : 'false';
+    }
+
     for (const v of vars) {
       const key = v.key;
       const exampleDefault = v.def ?? '';
-      const defaultVal = mode === 'update' && Object.prototype.hasOwnProperty.call(current, key) ? String(current[key]) : String(exampleDefault);
+      let defaultVal = mode === 'update' && Object.prototype.hasOwnProperty.call(current, key) ? String(current[key]) : String(exampleDefault);
+
+      // If user answered the Docker question, use it as the default for CRON_USE_DOCKER
+      if (key === 'CRON_USE_DOCKER' && typeof answers.CRON_USE_DOCKER === 'string' && answers.CRON_USE_DOCKER) {
+        defaultVal = answers.CRON_USE_DOCKER;
+      }
 
       output.write(`\n=== ${key} ===\n`);
       const help = HELP?.[key]?.[tr.lang] || '';

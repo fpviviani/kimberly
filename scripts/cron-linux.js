@@ -72,13 +72,23 @@ function main() {
   const cliMinutes = minutesList(every, 0);
   const monMinutes = minutesList(every, offset);
 
+  const useDocker = (process.env.CRON_USE_DOCKER || '0') === '1' || String(process.env.CRON_USE_DOCKER || '').toLowerCase() === 'true';
+
+  const cliCmd = useDocker
+    ? `docker compose run --rm crawler-cli`
+    : `/usr/bin/env node src/cli.js`;
+
+  const monCmd = useDocker
+    ? `docker compose run --rm crawler-monitor`
+    : `/usr/bin/env node src/debrid-monitor.js`;
+
   const block = [
     '# torrent-auto-crawlerr BEGIN',
-    `# cli every ${every} min; monitor ${after} min after (offset=${offset})`,
+    `# cli every ${every} min; monitor ${after} min after (offset=${offset}); useDocker=${useDocker}`,
     `SHELL=/bin/bash`,
     `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`,
-    `${cliMinutes} * * * * cd ${projectRoot} && mkdir -p ${logsDir} && /usr/bin/env node src/cli.js >> ${logsDir}/cron-cli.log 2>&1`,
-    `${monMinutes} * * * * cd ${projectRoot} && mkdir -p ${logsDir} && /usr/bin/env node src/debrid-monitor.js >> ${logsDir}/cron-monitor.log 2>&1`,
+    `${cliMinutes} * * * * cd ${projectRoot} && mkdir -p ${logsDir} && ${cliCmd} >> ${logsDir}/cron-cli.log 2>&1`,
+    `${monMinutes} * * * * cd ${projectRoot} && mkdir -p ${logsDir} && ${monCmd} >> ${logsDir}/cron-monitor.log 2>&1`,
     '# torrent-auto-crawlerr END',
     ''
   ].join('\n');
