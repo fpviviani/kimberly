@@ -1,5 +1,27 @@
 # torrent-auto-crawlerr
 
+## Table of contents
+
+- [What each executable does (quick summary)](#what-each-executable-does-quick-summary)
+- [Quality priority (sorting)](#quality-priority-sorting)
+- [Requirements](#requirements)
+  - [If you will use Docker (recommended)](#if-you-will-use-docker-recommended)
+  - [If you will NOT use Docker (manual install)](#if-you-will-not-use-docker-manual-install)
+- [Docker (Prowlarr/Radarr/Bazarr stack + nice local URLs)](#docker-prowlarr-radarr-bazarr-stack--nice-local-urls)
+  - [Start the stack](#start-the-stack)
+  - [Access the GUIs](#access-the-guis)
+- [Dependency configuration (Prowlarr/Bazarr)](#dependency-configuration-prowlarrbazarr)
+- [Configuration](#configuration)
+- [Usage](#usage)
+  - [(Optional) Scheduled runs](#optional-scheduled-runs-linux-cron--windows-task-scheduler)
+  - [Prowlarr CLI (cache builder)](#prowlarr-cli-cache-builder)
+  - [Debrid CLI](#debrid-cli)
+  - [Debrid monitor](#debrid-monitor)
+  - [Manual import to Radarr](#manual-import-to-radarr-existing-folder)
+- [Useful environment variables](#useful-environment-variables)
+- [Cache format (Debrid flags)](#cache-format-debrid-flags)
+- [Auto download hook](#auto-download-hook)
+
 A Node.js automation project that:
 
 1. Reads a Letterboxd list
@@ -8,6 +30,29 @@ A Node.js automation project that:
 4. Filters / de-dupes / prioritizes releases
 5. Persists results to a JSON cache (`cache.json`)
 6. (Optional) runs a Debrid pipeline (Real-Debrid) + auto-download + Plex refresh + Radarr import
+
+### What each executable does (quick summary)
+
+- **`src/cli.js`**: reads the Letterboxd list, searches releases on Prowlarr, filters/de-dupes/prioritizes, and writes/updates `cache.json`.
+- **`src/debrid-cli.js`**: takes pending movies (from the list or via stdin pipe), sends torrents/magnets to Real-Debrid, selects files, and (if enabled) triggers auto-download + actions (Plex/Radarr).
+- **`src/debrid-monitor.js`**: monitors torrents already sent to Real-Debrid (queued/downloading) and finalizes them when ready, downloading/extracting/moving files as configured.
+- **`src/manual-import.js`**: helper utility to fix/assist Radarr import for an existing download (and optionally refresh Plex after adding/importing).
+
+### Quality priority (sorting)
+
+Releases are prioritized in this order:
+
+1) 2160p (4K), any codec
+2) 1080p + H265/X265
+3) 1080p + H264/X264
+4) 1080p (any codec)
+5) 720p (any codec)
+6) no resolution detected
+
+Within the same priority:
+
+- smaller size first
+- then more seeders
 
 ## Requirements
 
@@ -41,9 +86,10 @@ A Node.js automation project that:
 - **7-Zip (`7z`)** installed
   - only needed if you enable `AUTO_DOWNLOAD` and Real-Debrid returns `.rar` archives (extraction via `7z x`)
 
-## Installation (step by step) — MANUAL MODE (no Docker)
+<details>
+<summary><strong>Installation (step by step) — MANUAL MODE (no Docker)</strong></summary>
 
-> If you will use **Docker**, skip this section and go straight to: **Docker (Prowlarr/Radarr/Bazarr stack + nice local URLs)**.
+> If you will use **Docker**, skip this section and go straight to the dropdown: **Docker (Prowlarr/Radarr/Bazarr stack + nice local URLs)**.
 
 1) Clone the repo
 
@@ -99,7 +145,10 @@ npm link
 
 This creates commands like `torrent-auto-crawlerr` / `torrent-auto-crawlerr-debrid` in your PATH.
 
-## Docker (Prowlarr/Radarr/Bazarr stack + nice local URLs)
+</details>
+
+<details>
+<summary><strong>Docker (Prowlarr/Radarr/Bazarr stack + nice local URLs)</strong></summary>
 
 <details>
 <summary><strong>(Optional) How to install Docker on Windows</strong></summary>
@@ -191,6 +240,14 @@ docker compose run --rm crawler-monitor
 Some apps may require setting a **URL Base** in their UI to work perfectly behind `/radarr`, `/prowlarr`, `/bazarr`.
 If anything looks broken (assets/redirects), use the direct ports or configure URL Base in the app.
 
+</details>
+
+---
+
+## Dependency configuration (Prowlarr/Bazarr)
+
+These settings apply to both **manual** installs and the **Docker** stack.
+
 <details>
 <summary><strong>(Required) How to configure Prowlarr to find torrents</strong></summary>
 
@@ -232,7 +289,7 @@ Step by step:
 2) Go to **Settings → Radarr**
    - Enable **Enabled**
    - Paste the **Radarr API Key**
-     - (you can find it in Radarr UI: **Settings → General**)
+     - (you can find it in Radarr UI: http://localhost/radarr or http://localhost:7878 → **Settings → General**)
    - Uncheck **Download only monitored**
    - Click **Save** (important)
 
@@ -282,34 +339,40 @@ If you’re unsure, check the official Bazarr documentation:
 
 ---
 
-## Windows setup
+<details>
+<summary><strong>Windows setup (only 7-Zip for .rar extraction)</strong></summary>
 
-If you want to run this project on **Windows**:
+If you use `AUTO_DOWNLOAD=true` and Real-Debrid returns `.rar` archives, you will need **7-Zip**.
 
-- Install **Node.js 18+**
-- Make sure **Prowlarr** is reachable and your `.env` has `PROWLARR_URL` + `PROWLARR_API_KEY`
-- Set Windows paths in `.env` (examples):
-  - `AUTO_DOWNLOAD_DEST_DIR=C:\\Videos\\Movies`
-  - `RADARR_ROOT_FOLDER_PATH=C:\\Videos\\Movies`
-- For `.rar` extraction during auto-download:
-  - install **7-Zip**
-  - add `7z.exe` to your **PATH**, or set `SEVEN_ZIP_PATH` in `.env`, e.g.:
-    - `SEVEN_ZIP_PATH=C:\\Program Files\\7-Zip\\7z.exe`
+- Install **7-Zip**
+- Add `7z.exe` to your **PATH**, or set `SEVEN_ZIP_PATH` in `.env`, e.g.:
+  - `SEVEN_ZIP_PATH=C:\\Program Files\\7-Zip\\7z.exe`
 
 Notes:
 - `.zip` extraction does **not** require 7-Zip (handled in Node).
+
+</details>
 
 ## Configuration
 
 Your `.env` was created in the installation steps above.
 
-At minimum, make sure you set `PROWLARR_API_KEY`.
+At minimum, make sure you set:
+- `PROWLARR_API_KEY`
+- `LETTERBOXD_LIST_URL` (required for the default no-args mode)
 
 ## Usage
 
 ## (Optional) Scheduled runs (Linux cron / Windows Task Scheduler)
 
-You can create the schedule automatically with:
+You can create the schedule in two ways:
+
+1) **Automatically at the end of the wizard** (recommended)
+   - During `setup`, you can choose to create cron/tasks automatically at the end.
+
+2) **By running the cron creation scripts** (if you didn’t create it in the wizard)
+
+- Without Docker (Node on the host):
 
 ```bash
 npm run cron:linux
@@ -317,16 +380,27 @@ npm run cron:linux
 npm run cron:windows
 ```
 
+- With Docker (no Node on the host):
+
+```bash
+docker compose run --rm crawler-cli npm run cron:linux
+# or
+docker compose run --rm crawler-cli npm run cron:windows
+```
+
 It uses these `.env` variables:
 - `CRON_USE_DOCKER` (default false): if true, scheduling calls `docker compose run --rm ...`
 - `CRON_CLI_EVERY_MIN` (default 20)
 - `CRON_MONITOR_AFTER_CLI_MIN` (default 10)
 
-If you want to run this automatically every **X minutes**, you can schedule `cli.js` (and optionally `debrid-monitor.js`).
-
 > Tip: prefer scheduling **only what you need**. `cli.js` + `debrid-cli.js` can add many torrents to your debrid; `debrid-monitor.js` is usually the safe one to run periodically.
 
-### Linux (cron)
+### (Optional) Creating cron/tasks manually
+
+Only do this if you **chose not to use the script** (or if you want customization beyond what the script offers).
+
+<details>
+<summary><strong>Linux (cron)</strong></summary>
 
 1) Open your crontab:
 
@@ -352,7 +426,10 @@ mkdir -p <project-root>/logs
 
 If you want a different interval, replace `*/30` with `*/5` (every 5 min), `*/10`, etc.
 
-### Windows (Task Scheduler)
+</details>
+
+<details>
+<summary><strong>Windows (Task Scheduler)</strong></summary>
 
 1) Open **Task Scheduler** → **Create Task…**
 2) Tab **Triggers** → **New…** → set “Daily” and “Repeat task every: X minutes”
@@ -367,12 +444,24 @@ Notes:
 - Ensure your `.env` exists in `<project-root>`.
 - If Windows can’t find `node`, use the full path (e.g. `C:\\Program Files\\nodejs\\node.exe`).
 
+</details>
+
 ### Prowlarr CLI (cache builder)
+
+This is the **manual usage** (run now, without waiting for cron).
+
+**Without Docker (Node on the host)**
 
 **Mode A: Letterboxd list URL**
 
 ```bash
 node src/cli.js "https://boxd.it/xxxx"
+```
+
+**With Docker (no Node on the host)**
+
+```bash
+docker compose run --rm crawler-cli node src/cli.js "https://boxd.it/xxxx"
 ```
 
 **Mode A (fallback): use `LETTERBOXD_LIST_URL` from `.env`**
@@ -383,22 +472,40 @@ LETTERBOXD_LIST_URL=https://boxd.it/xxxx
 
 # run without args
 node src/cli.js
+
+# (Docker)
+docker compose run --rm crawler-cli node src/cli.js
 ```
 
 **Mode B: explicit movies array** (JSON array; each item is `"name - year"`)
 
 ```bash
 node src/cli.js --movies "[\"Don't Play Us Cheap - 1973\", \"The French Connection - 1971\"]"
+
+# (Docker)
+docker compose run --rm crawler-cli node src/cli.js --movies "[\"Don't Play Us Cheap - 1973\", \"The French Connection - 1971\"]"
 ```
 
 Output: a JSON array with movie titles from the cache where `process_executed !== true`.
 
 ### Debrid CLI
 
+This is the **manual usage** (run now, without waiting for cron).
+
+- If you **don’t pass a list URL as an argument**, the script uses `LETTERBOXD_LIST_URL` from `.env`.
+
+**Without Docker (Node on the host)**
+
 Run using the Letterboxd list URL:
 
 ```bash
 node src/debrid-cli.js "https://boxd.it/xxxx"
+```
+
+Run with no arguments (uses `LETTERBOXD_LIST_URL` from `.env`):
+
+```bash
+node src/debrid-cli.js
 ```
 
 Or pipe the pending array from `cli.js`:
@@ -407,10 +514,34 @@ Or pipe the pending array from `cli.js`:
 node src/cli.js "https://boxd.it/xxxx" | node src/debrid-cli.js
 ```
 
+**With Docker (no Node on the host)**
+
+```bash
+# with URL
+docker compose run --rm crawler-cli node src/debrid-cli.js "https://boxd.it/xxxx"
+
+# no args (uses LETTERBOXD_LIST_URL from .env)
+docker compose run --rm crawler-cli node src/debrid-cli.js
+
+# pipe (generate pending inside the container and pipe into debrid-cli in the same container)
+docker compose run --rm crawler-cli sh -lc 'node src/cli.js "https://boxd.it/xxxx" | node src/debrid-cli.js'
+```
+
 ### Debrid monitor
+
+This is the **manual usage** (run now, without waiting for cron).
+
+**Without Docker (Node on the host)**
 
 ```bash
 node src/debrid-monitor.js
+```
+
+**With Docker (no Node on the host)**
+
+```bash
+docker compose run --rm crawler-monitor
+# (equivalent to: docker compose run --rm crawler-monitor node src/debrid-monitor.js)
 ```
 
 ### Manual import to Radarr (existing folder)
@@ -418,9 +549,14 @@ node src/debrid-monitor.js
 If you downloaded a movie manually and created a folder under your library path (e.g. `/path/to/Movies/<Movie Folder>` or `C:\\Videos\\Movies\\<Movie Folder>`), you can ask this script to find the folder and add it to Radarr. It will also trigger a Plex refresh for the Movies section.
 
 ```bash
+# Without Docker (Node on the host)
 node src/manual-import.js "Movie Name - 1999"
 # or without year:
 node src/manual-import.js "Movie Name"
+
+# With Docker (no Node on the host)
+docker compose run --rm crawler-cli node src/manual-import.js "Movie Name - 1999"
+docker compose run --rm crawler-cli node src/manual-import.js "Movie Name"
 ```
 
 ## Useful environment variables
@@ -541,35 +677,9 @@ Command: `torrent-auto-crawlerr-torrent-import`
   --url "https://example.com/file.torrent"
 ```
 
-## Recent changes / notes (2026-02)
-
-- `cli.js` supports **two input modes**:
-  - list URL (Letterboxd)
-  - `--movies` JSON array in the format `"name - year"`
-- Prowlarr search is more robust to punctuation (e.g. **Don't → Dont**) by trying a sanitized query variant.
-- Debrid/monitor improvements:
-  - Treat more video extensions as video (not only `.mkv/.mp4`; includes `.avi`, `.m2ts`, `.mts`, `.m4v`, `.mov`).
-  - If a torrent becomes `queued/downloading` after file selection, we **leave it in Debrid** and let the monitor finish later.
-  - When we remove a torrent from Debrid, we clear stale `sent_to_debrid/debrid_id` in cache (avoid “phantom sent”).
-
 ## Provider base URL + API key (Real-Debrid)
 
 
 - `REALDEBRID_URL`: if set, takes precedence and becomes the provider base URL
 - `REALDEBRID_API_KEY`: sent as `Authorization: Bearer ...`
 
-## Quality priority (sorting)
-
-Releases are prioritized in this order:
-
-1) 2160p (4K), any codec
-2) 1080p + H265/X265
-3) 1080p + H264/X264
-4) 1080p (any codec)
-5) 720p (any codec)
-6) no resolution detected
-
-Within the same priority:
-
-- smaller size first
-- then more seeders

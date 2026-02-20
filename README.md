@@ -1,5 +1,27 @@
 # torrent-auto-crawlerr
 
+## Sumário
+
+- [O que cada executável faz (resumo rápido)](#o-que-cada-executável-faz-resumo-rápido)
+- [Prioridade de qualidade (sorting)](#prioridade-de-qualidade-sorting)
+- [Pré-requisitos](#pré-requisitos)
+  - [Se você vai usar Docker (recomendado)](#se-você-vai-usar-docker-recomendado)
+  - [Se você NÃO vai usar Docker (instalação manual)](#se-você-não-vai-usar-docker-instalação-manual)
+- [Docker (stack Prowlarr/Radarr/Bazarr + URL bonitinha na LAN)](#docker-stack-prowlarr-radarr-bazarr--url-bonitinha-na-lan)
+  - [Subir o stack](#subir-o-stack)
+  - [Acessar as GUIs](#acessar-as-guis)
+- [Configurações de dependências (Prowlarr/Bazarr)](#configurações-de-dependências-prowlarrbazarr)
+- [Configuração](#configuração)
+- [Uso](#uso)
+  - [(Opcional) Execução agendada](#opcional-execução-agendada-cron-no-linux--task-scheduler-no-windows)
+  - [Prowlarr CLI (builder do cache)](#prowlarr-cli-builder-do-cache)
+  - [Debrid CLI](#debrid-cli)
+  - [Debrid monitor](#debrid-monitor)
+  - [Import manual para o Radarr](#import-manual-para-o-radarr-pasta-existente)
+- [Variáveis de ambiente úteis](#variáveis-de-ambiente-úteis)
+- [Formato do cache (flags de Debrid)](#formato-do-cache-flags-de-debrid)
+- [Auto download hook](#auto-download-hook)
+
 Um projeto de automação em Node.js que:
 
 1. Lê uma lista do Letterboxd
@@ -8,6 +30,29 @@ Um projeto de automação em Node.js que:
 4. Filtra / deduplica / prioriza releases
 5. Persiste o resultado em um cache JSON (`cache.json`)
 6. (Opcional) executa um pipeline com Debrid (Real-Debrid) + download automático + refresh do Plex + import no Radarr
+
+### O que cada executável faz (resumo rápido)
+
+- **`src/cli.js`**: lê a lista do Letterboxd, busca releases no Prowlarr, filtra/deduplica/prioriza e salva/atualiza o `cache.json`.
+- **`src/debrid-cli.js`**: pega os filmes pendentes (da lista ou via pipe), envia torrents/magnets pro Real-Debrid, seleciona arquivos e (se habilitado) dispara o auto-download + ações (Plex/Radarr).
+- **`src/debrid-monitor.js`**: monitora torrents já enviados ao Real-Debrid (queued/downloading) e finaliza quando ficarem prontos, baixando/extraindo/movendo arquivos conforme o pipeline.
+- **`src/manual-import.js`**: utilitário para corrigir/ajudar importação no Radarr de um download já existente (e opcionalmente refresh do Plex após adicionar/importar).
+
+### Prioridade de qualidade (sorting)
+
+Releases são priorizados nesta ordem:
+
+1) 2160p (4K), qualquer codec
+2) 1080p + H265/X265
+3) 1080p + H264/X264
+4) 1080p (qualquer codec)
+5) 720p (qualquer codec)
+6) sem resolução detectada
+
+Dentro da mesma prioridade:
+
+- menor tamanho primeiro
+- depois mais seeders
 
 ## Pré-requisitos
 
@@ -41,9 +86,10 @@ Um projeto de automação em Node.js que:
 - **7-Zip (`7z`)** instalado no sistema
   - só é necessário se você usa `AUTO_DOWNLOAD` e o Real-Debrid devolver arquivos `.rar` (extração via `7z x`)
 
-## Instalação (passo a passo) — MODO MANUAL (sem Docker)
+<details>
+<summary><strong>Instalação (passo a passo) — MODO MANUAL (sem Docker)</strong></summary>
 
-> Se você vai usar **Docker**, pule esta seção e vá direto para: **Docker (stack Prowlarr/Radarr/Bazarr + URL bonitinha na LAN)**.
+> Se você vai usar **Docker**, pule esta seção e vá direto para o dropdown: **Docker (stack Prowlarr/Radarr/Bazarr + URL bonitinha na LAN)**.
 
 1) Clone o repositório
 
@@ -99,7 +145,10 @@ npm link
 
 Isso cria comandos como `torrent-auto-crawlerr` / `torrent-auto-crawlerr-debrid` no seu PATH.
 
-## Docker (stack Prowlarr/Radarr/Bazarr + URL bonitinha na LAN)
+</details>
+
+<details>
+<summary><strong>Docker (stack Prowlarr/Radarr/Bazarr + URL bonitinha na LAN)</strong></summary>
 
 <details>
 <summary><strong>(Opcional) Como instalar Docker no Windows</strong></summary>
@@ -191,6 +240,14 @@ docker compose run --rm crawler-monitor
 Alguns apps precisam que você configure o **URL Base** na GUI para funcionar 100% atrás de `/radarr`, `/prowlarr`, `/bazarr`.
 Se algo ficar estranho (assets quebrados/redirect errado), use a porta direta ou configure o URL Base no app.
 
+</details>
+
+---
+
+## Configurações de dependências (Prowlarr/Bazarr)
+
+Essas configurações valem tanto para instalação **manual** quanto via **Docker**.
+
 <details>
 <summary><strong>(Obrigatório) Como configurar o Prowlarr para encontrar torrents</strong></summary>
 
@@ -232,7 +289,7 @@ Passo a passo:
 2) Vá em **Settings → Radarr**
    - Marque **Enabled**
    - Cole a **API Key do Radarr**
-     - (a API key fica disponível na GUI do Radarr: **Settings → General**)
+     - (a API key fica disponível na GUI do Radarr: http://localhost/radarr ou http://localhost:7878 → **Settings → General**)
    - Desmarque **Download only monitored**
    - Clique em **Save** (importante)
 
@@ -282,34 +339,40 @@ Se ficar com dúvida, confira a documentação oficial do Bazarr:
 
 ---
 
-## Setup no Windows
+<details>
+<summary><strong>Setup no Windows (apenas 7-Zip para extração de .rar)</strong></summary>
 
-Se você quiser rodar este projeto no **Windows**:
+Se você usa `AUTO_DOWNLOAD=true` e o Real-Debrid devolver arquivos `.rar`, você vai precisar do **7-Zip**.
 
-- Instale o **Node.js 18+**
-- Garanta que o **Prowlarr** está acessível e que seu `.env` tem `PROWLARR_URL` + `PROWLARR_API_KEY`
-- Configure paths do Windows no `.env` (exemplos):
-  - `AUTO_DOWNLOAD_DEST_DIR=C:\\Videos\\Movies`
-  - `RADARR_ROOT_FOLDER_PATH=C:\\Videos\\Movies`
-- Para extração de `.rar` durante o auto-download:
-  - instale o **7-Zip**
-  - adicione `7z.exe` no **PATH**, ou sete `SEVEN_ZIP_PATH` no `.env`, por exemplo:
-    - `SEVEN_ZIP_PATH=C:\\Program Files\\7-Zip\\7z.exe`
+- Instale o **7-Zip**
+- Adicione `7z.exe` no **PATH**, ou configure `SEVEN_ZIP_PATH` no `.env`, por exemplo:
+  - `SEVEN_ZIP_PATH=C:\\Program Files\\7-Zip\\7z.exe`
 
 Notas:
-- extração de `.zip` **não** precisa de 7-Zip (é feita pelo Node).
+- Extração de `.zip` **não** precisa de 7-Zip (é feita pelo Node).
+
+</details>
 
 ## Configuração
 
 Seu `.env` foi criado nos passos de instalação acima.
 
-No mínimo, garanta que você setou `PROWLARR_API_KEY`.
+No mínimo, garanta que você setou:
+- `PROWLARR_API_KEY`
+- `LETTERBOXD_LIST_URL` (obrigatório para o modo padrão sem argumentos)
 
 ## Uso
 
 ## (Opcional) Execução agendada (cron no Linux / Task Scheduler no Windows)
 
-Você pode criar o agendamento automaticamente com:
+Você pode criar o agendamento de duas formas:
+
+1) **Automaticamente no final do wizard** (recomendado)
+   - No `setup`, você pode optar por criar o cron/tasks automaticamente no final.
+
+2) **Rodando os scripts de criação** (se você não criou no wizard)
+
+- Sem Docker (Node no host):
 
 ```bash
 npm run cron:linux
@@ -317,16 +380,27 @@ npm run cron:linux
 npm run cron:windows
 ```
 
+- Com Docker (sem Node no host):
+
+```bash
+docker compose run --rm crawler-cli npm run cron:linux
+# ou
+docker compose run --rm crawler-cli npm run cron:windows
+```
+
 Isso usa as variáveis do `.env`:
 - `CRON_USE_DOCKER` (default false): se true, o agendamento chama `docker compose run --rm ...`
 - `CRON_CLI_EVERY_MIN` (default 20)
 - `CRON_MONITOR_AFTER_CLI_MIN` (default 10)
 
-Se você quiser rodar isso automaticamente a cada **X minutos**, você pode agendar o `cli.js` (e opcionalmente o `debrid-monitor.js`).
-
 > Dica: agende apenas o que você precisa. `cli.js` + `debrid-cli.js` podem encher o Debrid com torrents; `debrid-monitor.js` costuma ser o mais seguro para rodar periodicamente.
 
-### Linux (cron)
+### (Opcional) Criação de CRON manualmente
+
+Só faça isso se você **optou por não usar o script** (ou se quer personalizar além do que o script oferece).
+
+<details>
+<summary><strong>Linux (cron)</strong></summary>
 
 1) Abra seu crontab:
 
@@ -352,7 +426,10 @@ mkdir -p <project-root>/logs
 
 Para outro intervalo, troque `*/30` por `*/5` (a cada 5 min), `*/10`, etc.
 
-### Windows (Task Scheduler)
+</details>
+
+<details>
+<summary><strong>Windows (Task Scheduler)</strong></summary>
 
 1) Abra **Task Scheduler** → **Create Task…**
 2) Aba **Triggers** → **New…** → “Daily” e “Repeat task every: X minutes”
@@ -367,12 +444,24 @@ Notas:
 - Garanta que seu `.env` existe em `<project-root>`.
 - Se o Windows não achar `node`, use o path completo (ex.: `C:\\Program Files\\nodejs\\node.exe`).
 
+</details>
+
 ### Prowlarr CLI (builder do cache)
+
+Esta seção mostra o **uso manual** (para rodar agora, sem esperar o CRON).
+
+**Sem Docker (Node no host)**
 
 **Modo A: URL da lista do Letterboxd**
 
 ```bash
 node src/cli.js "https://boxd.it/xxxx"
+```
+
+**Com Docker (sem Node no host)**
+
+```bash
+docker compose run --rm crawler-cli node src/cli.js "https://boxd.it/xxxx"
 ```
 
 **Modo A (fallback): usar `LETTERBOXD_LIST_URL` do `.env`**
@@ -383,22 +472,40 @@ LETTERBOXD_LIST_URL=https://boxd.it/xxxx
 
 # rodar sem args
 node src/cli.js
+
+# (Docker)
+docker compose run --rm crawler-cli node src/cli.js
 ```
 
 **Modo B: array explícito de filmes** (JSON; cada item no formato `"nome - ano"`)
 
 ```bash
 node src/cli.js --movies "[\"Don't Play Us Cheap - 1973\", \"The French Connection - 1971\"]"
+
+# (Docker)
+docker compose run --rm crawler-cli node src/cli.js --movies "[\"Don't Play Us Cheap - 1973\", \"The French Connection - 1971\"]"
 ```
 
 Saída: um array JSON com títulos do cache onde `process_executed !== true`.
 
 ### Debrid CLI
 
+Esta seção mostra o **uso manual** (para rodar agora, sem esperar o CRON).
+
+- Se você **não informar uma lista como parâmetro**, o script usa a `LETTERBOXD_LIST_URL` do `.env`.
+
+**Sem Docker (Node no host)**
+
 Rodar usando a URL da lista do Letterboxd:
 
 ```bash
 node src/debrid-cli.js "https://boxd.it/xxxx"
+```
+
+Rodar sem parâmetros (usa `LETTERBOXD_LIST_URL` do `.env`):
+
+```bash
+node src/debrid-cli.js
 ```
 
 Ou pipeando o array de pendentes do `cli.js`:
@@ -407,10 +514,34 @@ Ou pipeando o array de pendentes do `cli.js`:
 node src/cli.js "https://boxd.it/xxxx" | node src/debrid-cli.js
 ```
 
+**Com Docker (sem Node no host)**
+
+```bash
+# com URL
+docker compose run --rm crawler-cli node src/debrid-cli.js "https://boxd.it/xxxx"
+
+# sem args (usa LETTERBOXD_LIST_URL do .env)
+docker compose run --rm crawler-cli node src/debrid-cli.js
+
+# pipe (gera pendentes no container e envia para o debrid-cli no mesmo container)
+docker compose run --rm crawler-cli sh -lc 'node src/cli.js "https://boxd.it/xxxx" | node src/debrid-cli.js'
+```
+
 ### Debrid monitor
+
+Esta seção mostra o **uso manual** (para rodar agora, sem esperar o CRON).
+
+**Sem Docker (Node no host)**
 
 ```bash
 node src/debrid-monitor.js
+```
+
+**Com Docker (sem Node no host)**
+
+```bash
+docker compose run --rm crawler-monitor
+# (equivalente a: docker compose run --rm crawler-monitor node src/debrid-monitor.js)
 ```
 
 ### Import manual para o Radarr (pasta existente)
@@ -418,9 +549,14 @@ node src/debrid-monitor.js
 Se você baixou um filme manualmente e criou uma pasta dentro da sua biblioteca (ex.: `/path/to/Movies/<Movie Folder>` ou `C:\\Videos\\Movies\\<Movie Folder>`), você pode pedir para este script encontrar a pasta e adicionar no Radarr. Ele também dispara um refresh do Plex.
 
 ```bash
+# Sem Docker (Node no host)
 node src/manual-import.js "Movie Name - 1999"
 # ou sem ano:
 node src/manual-import.js "Movie Name"
+
+# Com Docker (sem Node no host)
+docker compose run --rm crawler-cli node src/manual-import.js "Movie Name - 1999"
+docker compose run --rm crawler-cli node src/manual-import.js "Movie Name"
 ```
 
 ## Variáveis de ambiente úteis
@@ -543,35 +679,9 @@ Comando: `torrent-auto-crawlerr-torrent-import`
   --url "https://example.com/file.torrent"
 ```
 
-## Mudanças recentes / notas (2026-02)
-
-- `cli.js` suporta **dois modos de entrada**:
-  - URL de lista (Letterboxd)
-  - `--movies` JSON array no formato `"nome - ano"`
-- Busca no Prowlarr mais robusta a pontuação (ex.: **Don't → Dont**) tentando uma variação sanitizada.
-- Melhorias no debrid/monitor:
-  - Mais extensões de vídeo tratadas como vídeo (não só `.mkv/.mp4`; inclui `.avi`, `.m2ts`, `.mts`, `.m4v`, `.mov`).
-  - Se um torrent vira `queued/downloading` após seleção de arquivos, a gente **deixa no Debrid** e o monitor finaliza depois.
-  - Ao remover um torrent do Debrid, limpa `sent_to_debrid/debrid_id` no cache (evita “phantom sent”).
-
 ## Provider base URL + API key (Real-Debrid)
 
 
 - `REALDEBRID_URL`: se setada, tem prioridade e vira a base URL do provider
 - `REALDEBRID_API_KEY`: enviada como `Authorization: Bearer ...`
 
-## Prioridade de qualidade (sorting)
-
-Releases são priorizados nesta ordem:
-
-1) 2160p (4K), qualquer codec
-2) 1080p + H265/X265
-3) 1080p + H264/X264
-4) 1080p (qualquer codec)
-5) 720p (qualquer codec)
-6) sem resolução detectada
-
-Dentro da mesma prioridade:
-
-- menor tamanho primeiro
-- depois mais seeders
