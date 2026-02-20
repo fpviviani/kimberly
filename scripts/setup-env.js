@@ -393,10 +393,20 @@ async function main() {
         : 'Will you use Docker to run the stack (Prowlarr/Radarr/Bazarr and the crawler)?\nPros: no need to install Node/Prowlarr/Radarr/Bazarr manually; everything comes up with docker compose.\nUse Docker? (y/N): ';
       const ans = await rl.question(`\n${q}`);
       const a = String(ans || '').trim().toLowerCase();
-      const yes = tr.lang === 'pt' ? (a === 's' || a === 'sim' || a === 'y' || a === 'yes') : (a === 'y' || a === 'yes' || a === 's' || a === 'sim');
+      const yes = tr.lang === 'pt'
+        ? (a === 's' || a === 'sim' || a === 'y' || a === 'yes')
+        : (a === 'y' || a === 'yes' || a === 's' || a === 'sim');
       // Default: false (no)
       answers.CRON_USE_DOCKER = yes ? 'true' : 'false';
+      answers.__USE_DOCKER = yes;
     }
+
+    // If using Docker, prefer the reverse-proxy "nice URLs" as defaults.
+    // Note: when running the wizard *inside* a container (docker compose run crawler-setup),
+    // http://localhost/... points to the container itself, not the host. In that case, use http://caddy/... instead.
+    const runningInsideDocker = await exists('/.dockerenv');
+    const prowlarrNiceUrl = runningInsideDocker ? 'http://caddy/prowlarr' : 'http://localhost/prowlarr';
+    const radarrNiceUrl = runningInsideDocker ? 'http://caddy/radarr' : 'http://localhost/radarr';
 
     for (const v of vars) {
       const key = v.key;
@@ -406,6 +416,19 @@ async function main() {
       // If user answered the Docker question, use it as the default for CRON_USE_DOCKER
       if (key === 'CRON_USE_DOCKER' && typeof answers.CRON_USE_DOCKER === 'string' && answers.CRON_USE_DOCKER) {
         defaultVal = answers.CRON_USE_DOCKER;
+      }
+
+      // Auto-fill service URLs when using Docker: use the reverse-proxy nice URLs.
+      if (answers.__USE_DOCKER && (key === 'PROWLARR_URL' || key === 'RADARR_BASE_URL')) {
+        const chosen = key === 'PROWLARR_URL' ? prowlarrNiceUrl : radarrNiceUrl;
+        answers[key] = chosen;
+        output.write(`\n=== ${key} ===\n`);
+        output.write(
+          tr.lang === 'pt'
+            ? `Docker detectado: usando URL bonitinha automaticamente: ${chosen}\n`
+            : `Docker selected: using nice URL automatically: ${chosen}\n`
+        );
+        continue;
       }
 
       output.write(`\n=== ${key} ===\n`);

@@ -108,16 +108,8 @@ npm i
 
 Option A (interactive wizard):
 
-- Without Docker (Node installed on the host):
-
 ```bash
 npm run setup
-```
-
-- With Docker (no Node on the host):
-
-```bash
-docker compose run --rm crawler-setup
 ```
 
 Option B (manual):
@@ -191,14 +183,6 @@ Requirement: Docker + Docker Compose.
 
 Recommended option (interactive wizard):
 
-- If you have Node installed on the host:
-
-```bash
-npm run setup
-```
-
-- If you are Docker-only (no Node on the host):
-
 ```bash
 docker compose run --rm crawler-setup
 ```
@@ -213,28 +197,6 @@ At minimum, you need: `AUTO_DOWNLOAD_DEST_DIR`, `LETTERBOXD_LIST_URL`, and `PROW
 docker compose up -d
 ```
 
-3) Run the crawler (no Node install required on the host):
-
-```bash
-# runs cli.js (and if EXECUTE_DEBRID=true, it will run debrid-cli inside the container)
-docker compose run --rm crawler-cli
-
-# runs the monitor
-docker compose run --rm crawler-monitor
-```
-
-### Access the GUIs
-
-- Nice URLs via reverse proxy (Caddy):
-  - http://localhost/prowlarr
-  - http://localhost/radarr
-  - http://localhost/bazarr
-
-- Or access the ports directly:
-  - http://localhost:9696 (Prowlarr)
-  - http://localhost:7878 (Radarr)
-  - http://localhost:6767 (Bazarr)
-
 ### Important (path-based reverse proxy)
 
 Some apps may require setting a **URL Base** in their UI to work perfectly behind `/radarr`, `/prowlarr`, `/bazarr`.
@@ -245,6 +207,18 @@ If anything looks broken (assets/redirects), use the direct ports or configure U
 ---
 
 ## Dependency configuration (Prowlarr/Bazarr)
+
+### Access the GUIs
+
+- **Docker**: you can use the “nice URLs” via reverse proxy (Caddy):
+  - http://localhost/prowlarr
+  - http://localhost/radarr
+  - http://localhost/bazarr
+
+- **Manual (no Docker)**: use the ports directly:
+  - http://localhost:9696 (Prowlarr)
+  - http://localhost:7878 (Radarr)
+  - http://localhost:6767 (Bazarr)
 
 These settings apply to both **manual** installs and the **Docker** stack.
 
@@ -393,8 +367,6 @@ It uses these `.env` variables:
 - `CRON_CLI_EVERY_MIN` (default 20)
 - `CRON_MONITOR_AFTER_CLI_MIN` (default 10)
 
-> Tip: prefer scheduling **only what you need**. `cli.js` + `debrid-cli.js` can add many torrents to your debrid; `debrid-monitor.js` is usually the safe one to run periodically.
-
 ### (Optional) Creating cron/tasks manually
 
 Only do this if you **chose not to use the script** (or if you want customization beyond what the script offers).
@@ -410,9 +382,18 @@ crontab -e
 
 2) Add entries (example: every 30 minutes):
 
+**Without Docker (Node on the host):**
+
 ```cron
 */30 * * * * cd <project-root> && /usr/bin/env node src/cli.js >> logs/cli.log 2>&1
 */30 * * * * cd <project-root> && /usr/bin/env node src/debrid-monitor.js >> logs/monitor.log 2>&1
+```
+
+**With Docker:**
+
+```cron
+*/30 * * * * cd <project-root> && docker compose run --rm crawler-cli >> logs/cli.log 2>&1
+*/30 * * * * cd <project-root> && docker compose run --rm crawler-monitor >> logs/monitor.log 2>&1
 ```
 
 Notes:
@@ -434,11 +415,26 @@ If you want a different interval, replace `*/30` with `*/5` (every 5 min), `*/10
 1) Open **Task Scheduler** → **Create Task…**
 2) Tab **Triggers** → **New…** → set “Daily” and “Repeat task every: X minutes”
 3) Tab **Actions** → **New…**
+
+**Without Docker (Node on the host):**
    - **Program/script:** `node` (or the full path to `node.exe`)
    - **Add arguments:** `src\cli.js`
    - **Start in:** `<project-root>`
+
+**With Docker:**
+   - **Program/script:** `docker`
+   - **Add arguments:** `compose run --rm crawler-cli`
+   - **Start in:** `<project-root>`
+
 4) Repeat for the monitor:
+
+**Without Docker:**
+   - **Program/script:** `node`
    - **Add arguments:** `src\debrid-monitor.js`
+
+**With Docker:**
+   - **Program/script:** `docker`
+   - **Add arguments:** `compose run --rm crawler-monitor`
 
 Notes:
 - Ensure your `.env` exists in `<project-root>`.
