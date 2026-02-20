@@ -132,6 +132,67 @@ docker compose run --rm crawler-monitor
 Alguns apps precisam que você configure o **URL Base** na GUI para funcionar 100% atrás de `/radarr`, `/prowlarr`, `/bazarr`.
 Se algo ficar estranho (assets quebrados/redirect errado), use a porta direta ou configure o URL Base no app.
 
+<details>
+<summary><strong>(Opcional) Como configurar o Bazarr para baixar legendas automaticamente</strong></summary>
+
+O **Bazarr** serve para **baixar legendas automaticamente** para seus filmes/séries, integrando com Radarr/Sonarr (aqui a gente foca em Radarr).
+
+Passo a passo:
+
+1) Abra a GUI do Bazarr:
+   - http://localhost/bazarr (ou http://localhost:6767)
+
+2) Vá em **Settings → Radarr**
+   - Marque **Enabled**
+   - Cole a **API Key do Radarr**
+     - (a API key fica disponível na GUI do Radarr: **Settings → General**)
+   - Desmarque **Download only monitored**
+   - Clique em **Save** (importante)
+
+3) Vá em **Settings → Languages**
+   - Em **Language filters**, escolha a(s) linguagem(ns) desejada(s)
+     - Se você escolher mais de uma, ele baixa legendas das duas
+     - Recomendação comum: **pt-BR** e **en-US**
+   - Clique em **Add New Profile**
+   - Selecione as linguagens que você escolheu no *language filters*
+   - Clique em **Save**
+
+4) Vá em **Settings → Providers**
+   - Adicione os sites de onde as legendas serão baixadas.
+   - Recomendações:
+     - **Gestdown** (gratuito e sem login)
+     - **Legendas.net** (gratuito, mas precisa de login)
+     - **OpenSubtitles.com** (gratuito, mas precisa de login)
+     - **Supersubtitles** (gratuito sem login)
+     - **Wizdom** (gratuito sem login)
+     - **YIFY Subtitles** (gratuito sem login)
+     - **Subdl** (gratuito, mas precisa de API Key)
+     - **sub2fm.com** (gratuito, mas precisa de login)
+   - Clique em **Save**
+
+5) Vá em **Settings → Subtitles**
+   - Em **Subtitle folder**, selecione: **Alongside media folder**
+   - Marque:
+     - **Encode subtitles to UTF-8**
+     - **Treat embedded subtitles as downloaded**
+     - **Show only desired languages**
+     - **Adaptive searching**
+     - **Search enabled providers simultaneously**
+     - **Golden-section search**
+     - **Automatic subtitles audio synchronization**
+   - Clique em **Save**
+
+6) (Opcional) **Settings → Plex** (apenas se quiser integração com Plex)
+   - Marque **Enabled**
+   - Clique em **Plex OAuth** e faça login na sua conta do Plex
+   - Marque **Refresh movie metadata after downloading subtitles**
+   - Clique em **Save**
+
+Se ficar com dúvida, confira a documentação oficial do Bazarr:
+- https://wiki.bazarr.media/Getting-Started/Setup-Guide/
+
+</details>
+
 ---
 
 ## Setup no Windows
