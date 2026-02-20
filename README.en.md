@@ -79,6 +79,41 @@ npm link
 
 This creates commands like `torrent-auto-crawlerr` / `torrent-auto-crawlerr-debrid` in your PATH.
 
+## Docker (Prowlarr/Radarr/Bazarr stack + nice local URLs)
+
+If you want users to avoid manually installing Prowlarr/Radarr/Bazarr, this repo includes a `docker-compose.yml` that brings everything up.
+
+Requirement: Docker + Docker Compose.
+
+### Start the stack
+
+1) Configure `.env` (at minimum `AUTO_DOWNLOAD_DEST_DIR` and `PROWLARR_API_KEY`)
+
+2) Run:
+
+```bash
+docker compose up -d
+```
+
+### Access the GUIs
+
+- Nice URLs via reverse proxy (Caddy):
+  - http://localhost/prowlarr
+  - http://localhost/radarr
+  - http://localhost/bazarr
+
+- Or access the ports directly:
+  - http://localhost:9696 (Prowlarr)
+  - http://localhost:7878 (Radarr)
+  - http://localhost:6767 (Bazarr)
+
+### Important (path-based reverse proxy)
+
+Some apps may require setting a **URL Base** in their UI to work perfectly behind `/radarr`, `/prowlarr`, `/bazarr`.
+If anything looks broken (assets/redirects), use the direct ports or configure URL Base in the app.
+
+---
+
 ## Windows setup
 
 If you want to run this project on **Windows**:

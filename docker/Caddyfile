@@ -1,0 +1,17 @@
+:80 {
+  encode zstd gzip
+
+  handle_path /prowlarr* {
+    reverse_proxy prowlarr:9696
+  }
+
+  handle_path /radarr* {
+    reverse_proxy radarr:7878
+  }
+
+  handle_path /bazarr* {
+    reverse_proxy bazarr:6767
+  }
+
+  respond "OK\n\n- /prowlarr\n- /radarr\n- /bazarr\n" 200
+}

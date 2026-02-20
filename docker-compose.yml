@@ -1,0 +1,70 @@
+version: "3.8"
+
+services:
+  caddy:
+    image: caddy:2
+    container_name: torrent-auto-crawlerr-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./docker/caddy/data:/data
+      - ./docker/caddy/config:/config
+    depends_on:
+      - prowlarr
+      - radarr
+      - bazarr
+    networks:
+      - media
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: torrent-auto-crawlerr-prowlarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-America/Sao_Paulo}
+    volumes:
+      - ./docker/config/prowlarr:/config
+    ports:
+      - "9696:9696"
+    networks:
+      - media
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: torrent-auto-crawlerr-radarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-America/Sao_Paulo}
+    volumes:
+      - ./docker/config/radarr:/config
+      - ${AUTO_DOWNLOAD_DEST_DIR:?Set AUTO_DOWNLOAD_DEST_DIR in .env}:/movies
+    ports:
+      - "7878:7878"
+    networks:
+      - media
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: torrent-auto-crawlerr-bazarr
+    restart: unless-stopped
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-America/Sao_Paulo}
+    volumes:
+      - ./docker/config/bazarr:/config
+      - ${AUTO_DOWNLOAD_DEST_DIR:?Set AUTO_DOWNLOAD_DEST_DIR in .env}:/movies
+    ports:
+      - "6767:6767"
+    networks:
+      - media
+
+networks:
+  media:
+    name: torrent-auto-crawlerr-media

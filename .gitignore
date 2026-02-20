@@ -19,3 +19,8 @@ _TRASH/
 # staging downloads
 staging downloads/*
 !staging downloads/.gitkeep
+
+# docker persistent data
+/docker/config/**
+!/docker/config/**/.gitkeep
+/docker/caddy/**
