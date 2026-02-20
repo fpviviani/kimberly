@@ -91,6 +91,37 @@ This creates commands like `torrent-auto-crawlerr` / `torrent-auto-crawlerr-debr
 
 ## Docker (Prowlarr/Radarr/Bazarr stack + nice local URLs)
 
+<details>
+<summary><strong>(Optional) How to install Docker on Windows</strong></summary>
+
+- Official Docker Desktop docs: https://docs.docker.com/desktop/setup/install/windows-install/
+
+Tips:
+- On Windows, Docker Desktop typically uses **WSL 2** (recommended).
+- After installing, verify:
+
+```powershell
+docker --version
+docker compose version
+```
+
+</details>
+
+<details>
+<summary><strong>(Optional) How to install Docker on Ubuntu (Linux)</strong></summary>
+
+- Official Docker Engine docs (Ubuntu): https://docs.docker.com/engine/install/ubuntu/
+
+After installing, verify:
+
+```bash
+docker --version
+docker compose version
+```
+
+</details>
+
+
 If you want users to avoid manually installing Prowlarr/Radarr/Bazarr, this repo includes a `docker-compose.yml` that brings everything up.
 
 Requirement: Docker + Docker Compose.

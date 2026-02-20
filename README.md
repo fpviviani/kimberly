@@ -91,6 +91,37 @@ Isso cria comandos como `torrent-auto-crawlerr` / `torrent-auto-crawlerr-debrid`
 
 ## Docker (stack Prowlarr/Radarr/Bazarr + URL bonitinha na LAN)
 
+<details>
+<summary><strong>(Opcional) Como instalar Docker no Windows</strong></summary>
+
+- Docker Desktop (oficial): https://docs.docker.com/desktop/setup/install/windows-install/
+
+Dicas:
+- No Windows, o Docker normalmente usa **WSL 2** (é o caminho recomendado).
+- Depois de instalar, verifique no terminal:
+
+```powershell
+docker --version
+docker compose version
+```
+
+</details>
+
+<details>
+<summary><strong>(Opcional) Como instalar Docker no Ubuntu (Linux)</strong></summary>
+
+- Guia oficial (Ubuntu): https://docs.docker.com/engine/install/ubuntu/
+
+Depois de instalar, verifique:
+
+```bash
+docker --version
+docker compose version
+```
+
+</details>
+
+
 Se você quer facilitar a vida do usuário (sem precisar instalar Prowlarr/Radarr/Bazarr manualmente), este repositório inclui um `docker-compose.yml` que sobe tudo.
 
 Pré-requisito: Docker + Docker Compose.
