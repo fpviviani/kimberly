@@ -274,6 +274,13 @@ for (const movie of movies) {
       .filter((r) => typeof r?.size === 'number' && r.size >= minBytes && r.size <= maxBytes)
       .map((r) => {
         const p = parseReleaseTitle(r.title);
+        const url = r.magnetUrl || r.downloadUrl || r.guid || r.infoUrl;
+        const u = typeof url === 'string' ? url : '';
+
+        // Prowlarr sometimes returns an http(s) /download URL instead of a magnet.
+        const magnet = u.startsWith('magnet:') ? u : '';
+        const torrent_url = u.startsWith('http://') || u.startsWith('https://') ? u : '';
+
         return {
           title: r.title,
           parsedName: p.name,
@@ -281,10 +288,11 @@ for (const movie of movies) {
           parsedCodec: p.codec,
           parsedRes: p.res,
           sizeGiB: Number(bytesToGiB(r.size).toFixed(2)),
-          downloadUrl: r.magnetUrl || r.downloadUrl || r.guid || r.infoUrl
+          magnet,
+          torrent_url
         };
       })
-      .filter((r) => typeof r.downloadUrl === 'string' && r.downloadUrl.startsWith('magnet:'));
+      .filter((r) => Boolean(r.magnet) || Boolean(r.torrent_url));
 
     filtered.sort((a, b) => {
       const pa = priorityRank({ res: a.parsedRes, codec: a.parsedCodec });
@@ -304,8 +312,8 @@ for (const movie of movies) {
         codec: (m.parsedCodec || '').toUpperCase(),
         resolution: (m.parsedRes || '').toUpperCase(),
         tamanho: m.sizeGiB,
-        magnet: m.downloadUrl,
-        torrent_url: '',
+        magnet: m.magnet || '',
+        torrent_url: m.torrent_url || '',
         torrent_path: '',
         sent_to_debrid: false,
         downloaded: false,
