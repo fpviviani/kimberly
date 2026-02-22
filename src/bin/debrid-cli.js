@@ -222,6 +222,14 @@ const maxBytes = maxGiB * (1024 ** 3);
 const minBytes = minGiB * (1024 ** 3);
 const maxTorrents = Number(process.env.MAX_TORRENTS || '20');
 
+const excludeTerms = (process.env.EXCLUDE_TERMS || '').trim();
+const excludeTermList = excludeTerms
+  ? excludeTerms.split(',').map(s => normalizeReleaseTitle(s)).filter(Boolean)
+  : [];
+
+// Optional: restrict by resolution (e.g. ONLY_RESOLUTION=1080p)
+const onlyResolution = String(process.env.ONLY_RESOLUTION || '').trim().toLowerCase();
+
 const concurrency = Number(process.env.CONCURRENCY || '3');
 const limit = pLimit(concurrency);
 const prowlarrTimeoutMs = Number(process.env.PROWLARR_TIMEOUT_MS || '30000');
@@ -292,7 +300,16 @@ for (const movie of movies) {
           torrent_url
         };
       })
-      .filter((r) => Boolean(r.magnet) || Boolean(r.torrent_url));
+      .filter((r) => Boolean(r.magnet) || Boolean(r.torrent_url))
+      .filter((r) => {
+        if (onlyResolution && String(r.parsedRes || '').toLowerCase() !== onlyResolution) return false;
+        return true;
+      })
+      .filter((r) => {
+        if (!excludeTermList.length) return true;
+        const t = normalizeReleaseTitle(r.title);
+        return !excludeTermList.some((term) => t.includes(term));
+      });
 
     filtered.sort((a, b) => {
       const pa = priorityRank({ res: a.parsedRes, codec: a.parsedCodec });
