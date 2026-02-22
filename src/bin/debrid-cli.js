@@ -487,8 +487,8 @@ for (const movie of movies) {
         logger: console
       });
 
-      // Only mark movie as executed after we actually downloaded something AND all required downloads succeeded.
-      okToMarkExecuted = Boolean(dlRes?.okAll && dlRes?.downloadedAny);
+      // Only mark movie as executed after we actually downloaded something AND we successfully moved it into the library.
+      okToMarkExecuted = Boolean(dlRes?.okAll && dlRes?.downloadedAny && dlRes?.movedToLibrary);
 
       if (okToMarkExecuted) {
         await dailyLog.log(`DOWNLOADED: movie="${movie.title}" release="${res.attempt?.title || ''}" dest="${dlRes?.movieDestDir || destDir}"`);

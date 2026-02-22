@@ -162,7 +162,7 @@ for (const movieTitle of Object.keys(cache)) {
           logger: console
         });
 
-        okToMarkExecuted = Boolean(dlRes?.okAll && dlRes?.downloadedAny);
+        okToMarkExecuted = Boolean(dlRes?.okAll && dlRes?.downloadedAny && dlRes?.movedToLibrary);
         if (okToMarkExecuted) {
           await dailyLog.log(`DOWNLOADED: movie="${movieTitle}" release="${torrentTitle}" dest="${dlRes?.movieDestDir || destDir}"`);
         }

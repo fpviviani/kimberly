@@ -145,7 +145,7 @@ export async function runAutoDownload({
 
   if (!toUnrestrict.length) {
     logger.log(`AUTO_DOWNLOAD: no links for movie="${movieTitle}"`);
-    return { ok: true, okAll: true, downloadedAny: false, movieDestDir, successCount: 0, failCount: 0 };
+    return { ok: true, okAll: true, downloadedAny: false, movedToLibrary: false, movieDestDir, successCount: 0, failCount: 0 };
   }
 
   logger.log(`AUTO_DOWNLOAD: movie="${movieTitle}" stage="${stagingDir}" final="${movieDestDir}" items=${toUnrestrict.length}`);
@@ -209,15 +209,21 @@ export async function runAutoDownload({
   // If we reused staging, treat it as okAll.
   const okAll = stagedVideoExists ? true : (successCount === toUnrestrict.length);
 
+  let movedToLibrary = false;
+
   // Move staged content into the Plex library only after successful downloads.
   if (okAll && downloadedAny) {
     try {
       await moveDirContents(stagingDir, movieDestDir);
       // best-effort cleanup
       await fs.rm(stagingDir, { recursive: true, force: true });
+
+      // Extra safety: only consider it "moved" if we can see a video file in the final folder.
+      movedToLibrary = await hasAnyVideoFile(movieDestDir);
+      if (!movedToLibrary) throw new Error(`final folder has no video files: ${movieDestDir}`);
     } catch (e) {
       logger.error(`AUTO_DOWNLOAD: move to library failed: ${String(e?.message || e)}`);
-      return { ok: false, okAll: false, downloadedAny, movieDestDir, successCount, failCount };
+      return { ok: false, okAll: false, downloadedAny, movedToLibrary: false, movieDestDir, successCount, failCount };
     }
 
     if (refreshPlex) {
@@ -244,5 +250,5 @@ export async function runAutoDownload({
     }
   }
 
-  return { ok: okAll, okAll, downloadedAny, movieDestDir, successCount, failCount };
+  return { ok: okAll && movedToLibrary, okAll, downloadedAny, movedToLibrary, movieDestDir, successCount, failCount };
 }
