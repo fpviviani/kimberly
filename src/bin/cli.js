@@ -46,6 +46,14 @@ function priorityRank({ res, codec }) {
   return 6;
 }
 
+
+function isDebridActiveTorrent(t) {
+  if (!t || typeof t !== 'object') return false;
+  if (t.downloading) return true;
+  const st = String(t.status || t.debrid_status || '').toLowerCase();
+  return st === 'queued' || st === 'downloading';
+}
+
 function pickMagnet(release) {
   // Different indexers/providers may name it differently.
   const candidates = [
@@ -303,13 +311,17 @@ await Promise.all(
       const cached = getCachedMovie(cache, movie.title);
       const cachedTorrentCount = cached?.torrents ? Object.keys(cached.torrents).length : 0;
       const cachedAnyDownloading = cached?.torrents && typeof cached.torrents === 'object'
-        ? Object.values(cached.torrents).some((t) => Boolean(t && typeof t === 'object' && t.downloading))
+        ? Object.values(cached.torrents).some((t) => isDebridActiveTorrent(t))
         : false;
 
-      // If we already have something downloading/queued in Debrid for this movie, do NOT search/send more.
+      // If this movie is already done OR already active in Debrid (queued/downloading), do NOT search/send more.
       // This avoids spamming Debrid with duplicate torrents (e.g., Murder à la Mod).
+      if (cached && cached.process_executed === true) {
+        results.push({ movie, skipped: true, reason: 'process_executed=true' });
+        return;
+      }
       if (cached && cachedAnyDownloading) {
-        results.push({ movie, skipped: true, reason: 'already downloading in debrid (cache.torrents.*.downloading=true)' });
+        results.push({ movie, skipped: true, reason: 'already active in debrid (queued/downloading)' });
         return;
       }
 
@@ -574,7 +586,7 @@ results.sort((a, b) => {
   for (const m of movies) {
     const entry = getCachedMovie(cache, m.title);
     const torrents = entry?.torrents && typeof entry.torrents === 'object' ? entry.torrents : {};
-    const any_downloading = Object.values(torrents).some((t) => Boolean(t && typeof t === 'object' && t.downloading));
+    const any_downloading = Object.values(torrents).some((t) => isDebridActiveTorrent(t));
 
     snap[m.title] = {
       process_executed: Boolean(entry?.process_executed),
@@ -600,7 +612,7 @@ const pendingMovies = Object.keys(cache)
     if (!x.entry) return false;
     if (x.entry.process_executed === true) return false;
     const torrents = x.entry.torrents && typeof x.entry.torrents === 'object' ? x.entry.torrents : {};
-    const any_downloading = Object.values(torrents).some((t) => Boolean(t && typeof t === 'object' && t.downloading));
+    const any_downloading = Object.values(torrents).some((t) => isDebridActiveTorrent(t));
     // If already downloading in Debrid, don't keep it in pending list (avoid re-sending).
     if (any_downloading) return false;
     return true;
