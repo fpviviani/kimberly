@@ -302,6 +302,16 @@ await Promise.all(
 
       const cached = getCachedMovie(cache, movie.title);
       const cachedTorrentCount = cached?.torrents ? Object.keys(cached.torrents).length : 0;
+      const cachedAnyDownloading = cached?.torrents && typeof cached.torrents === 'object'
+        ? Object.values(cached.torrents).some((t) => Boolean(t && typeof t === 'object' && t.downloading))
+        : false;
+
+      // If we already have something downloading/queued in Debrid for this movie, do NOT search/send more.
+      // This avoids spamming Debrid with duplicate torrents (e.g., Murder à la Mod).
+      if (cached && cachedAnyDownloading) {
+        results.push({ movie, skipped: true, reason: 'already downloading in debrid (cache.torrents.*.downloading=true)' });
+        return;
+      }
 
       if (!cached) {
         await dailyLog.log(`NEW_MOVIE: ${movie.title}${movie.year ? ` (${movie.year})` : ''}`);
@@ -586,7 +596,15 @@ results.sort((a, b) => {
 // (requested for orchestration)
 const pendingMovies = Object.keys(cache)
   .map((title) => ({ title, entry: getCachedMovie(cache, title) }))
-  .filter((x) => x.entry && x.entry.process_executed !== true)
+  .filter((x) => {
+    if (!x.entry) return false;
+    if (x.entry.process_executed === true) return false;
+    const torrents = x.entry.torrents && typeof x.entry.torrents === 'object' ? x.entry.torrents : {};
+    const any_downloading = Object.values(torrents).some((t) => Boolean(t && typeof t === 'object' && t.downloading));
+    // If already downloading in Debrid, don't keep it in pending list (avoid re-sending).
+    if (any_downloading) return false;
+    return true;
+  })
   .map((x) => x.title);
 
 const pendingJson = JSON.stringify(pendingMovies);
