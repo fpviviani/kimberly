@@ -44,8 +44,17 @@ export async function acquireLock({ lockPath, name = 'kimberly-cli', logger = co
 
   // Fast path: if lock exists and pid alive -> refuse.
   if (await exists(lockPath)) {
+    let data = null;
     try {
-      const data = await readJson(lockPath);
+      data = await readJson(lockPath);
+    } catch (e) {
+      // If lock is corrupt, remove it.
+      logger?.log?.(`LOCK: lock read failed; removing ${lockPath}: ${String(e?.message || e)}`);
+      await fs.rm(lockPath, { force: true });
+      data = null;
+    }
+
+    if (data) {
       const pid = Number(data?.pid);
       if (await isPidAlive(pid)) {
         const since = data?.startedAt || data?.createdAt || 'unknown';
@@ -58,10 +67,6 @@ export async function acquireLock({ lockPath, name = 'kimberly-cli', logger = co
 
       // stale lock
       logger?.log?.(`LOCK: removing stale lock (pid=${pid} not alive) at ${lockPath}`);
-      await fs.rm(lockPath, { force: true });
-    } catch (e) {
-      // If lock is corrupt, remove it.
-      logger?.log?.(`LOCK: lock read failed; removing ${lockPath}: ${String(e?.message || e)}`);
       await fs.rm(lockPath, { force: true });
     }
   }
