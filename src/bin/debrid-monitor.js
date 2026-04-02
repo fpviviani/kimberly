@@ -5,6 +5,7 @@ import { DebridProvider } from '../providers/debrid.js';
 import { runAutoDownload } from '../auto-download.js';
 import path from 'node:path';
 import { initDailyLogger } from '../logging.js';
+import { acquireLock, defaultLockPath } from '../lock.js';
 
 function usage() {
   console.log('Usage: kimberly-debrid-monitor');
@@ -22,6 +23,20 @@ let cache = await loadCache(cachePath);
 const provider = new DebridProvider({ baseUrl: providerBaseUrl, apiKey: realdebridApiKey });
 
 const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..');
+
+// Single-instance lock to prevent concurrent monitor runs.
+const lockPath = defaultLockPath({ projectRoot, name: 'kimberly-monitor' });
+let lock = null;
+try {
+  lock = await acquireLock({ lockPath, name: 'kimberly-monitor', logger: console });
+} catch (e) {
+  if (e && e.code === 'LOCKED') {
+    console.error(String(e.message || e));
+    process.exit(0);
+  }
+  throw e;
+}
+
 const dailyLog = await initDailyLogger({ projectRoot, logger: console });
 
 let checked = 0;

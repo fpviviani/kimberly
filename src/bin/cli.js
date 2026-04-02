@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { initDailyLogger } from '../logging.js';
+import { acquireLock, defaultLockPath } from '../lock.js';
 
 // STUB: if you implement torrent downloading, uncomment the import below.
 import { downloadTorrentStub } from '../torrent-download.stub.js';
@@ -239,6 +240,20 @@ const limit = pLimit(concurrency);
 const prowlarrTimeoutMs = Number(process.env.PROWLARR_TIMEOUT_MS || '30000');
 
 const projectRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..');
+
+// Single-instance lock to prevent concurrent runs (which can corrupt staging/cache temp files).
+const lockPath = defaultLockPath({ projectRoot, name: 'kimberly-cli' });
+let lock = null;
+try {
+  lock = await acquireLock({ lockPath, name: 'kimberly-cli', logger: console });
+} catch (e) {
+  if (e && e.code === 'LOCKED') {
+    console.error(String(e.message || e));
+    process.exit(0);
+  }
+  throw e;
+}
+
 const dailyLog = await initDailyLogger({ projectRoot, logger: console });
 
 const cachePath = process.env.CACHE_FILE ? process.env.CACHE_FILE : defaultCachePath();
