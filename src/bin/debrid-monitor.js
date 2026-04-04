@@ -47,6 +47,24 @@ function normalizeCodec(c) {
   return s;
 }
 
+function parseReleaseMetaFromTitle(title) {
+  const s = String(title ?? '').toLowerCase();
+
+  // resolution
+  let res = (s.match(/\b(2160p|1080p|720p)\b/) || [])[1] || '';
+  if (!res) {
+    const mNum = s.match(/\b(2160|1080|720)\b/);
+    if (mNum) res = `${mNum[1]}p`;
+  }
+
+  // codec
+  let codec = '';
+  if (s.includes('x265') || s.includes('h265') || s.includes('hevc')) codec = 'x265';
+  else if (s.includes('x264') || s.includes('h264') || s.includes('avc')) codec = 'x264';
+
+  return { res, codec };
+}
+
 function priorityRank({ res, codec }) {
   const r = String(res ?? '').toLowerCase();
   const c = normalizeCodec(codec);
@@ -255,40 +273,111 @@ async function maybeUpgradeMovie({ movieTitle }) {
   const currentRank = Number(entry.imported_rank || 0) || 0;
   if (!currentRank) return;
 
+  const finalPath = entry?.final_path || null;
+  if (!finalPath) return;
+
+  // 1) First try: better downloaded torrents already tracked in cache.
   const torrents = entry.torrents || {};
-  const downloaded = Object.entries(torrents)
+  let candidates = Object.entries(torrents)
     .filter(([_, t]) => t && typeof t === 'object' && t.downloaded && t.debrid_id)
     .map(([title, t]) => ({
       title,
-      t,
+      debridId: String(t.debrid_id),
       rank: priorityRank({ res: t.resolution, codec: t.codec })
     }))
-    .filter((x) => x.rank && x.rank < currentRank)
-    .sort((a, b) => a.rank - b.rank);
+    .filter((x) => x.rank && x.rank < currentRank);
 
-  if (!downloaded.length) return;
+  // 2) Fallback: look at ALL torrents currently in Real-Debrid and match by title/year.
+  if (!candidates.length) {
+    try {
+      const all = await provider.listTorrents();
+      const year = entry?.year ? String(entry.year) : '';
+      const movieLower = String(movieTitle).toLowerCase();
 
-  const best = downloaded[0];
-  const bestRank = best.rank;
-  const bestTorrentTitle = best.title;
-  const bestTorrent = best.t;
+      const matched = all.filter((t) => {
+        const name = String(t.filename || '').toLowerCase();
+        if (!name) return false;
+        if (!name.includes(movieLower)) return false;
+        if (year && !name.includes(year)) return false;
+        return true;
+      });
 
-  // Ensure we have direct links
-  const debridUrls = bestTorrent?.debrid_urls || {};
-  if (!debridUrls?.video && bestTorrent?.debrid_id) {
-    await ensureDebridUrlsFromInfo({ movieTitle, torrentTitle: bestTorrentTitle, debridId: bestTorrent.debrid_id });
+      candidates = matched
+        .map((t) => {
+          const meta = parseReleaseMetaFromTitle(t.filename || '');
+          return {
+            title: t.filename || t.id,
+            debridId: String(t.id),
+            rank: priorityRank({ res: meta.res, codec: meta.codec })
+          };
+        })
+        .filter((x) => x.rank && x.rank < currentRank);
+    } catch {
+      // ignore
+    }
   }
 
-  const entry2 = getCachedMovie(cache, movieTitle);
-  const best2 = entry2?.torrents?.[bestTorrentTitle];
-  const urls2 = best2?.debrid_urls || {};
-  if (!urls2?.video) return;
+  if (!candidates.length) return;
 
-  const finalPath = entry2?.final_path || null;
-  if (!finalPath) return;
+  candidates.sort((a, b) => a.rank - b.rank);
+  const best = candidates[0];
+  const bestRank = best.rank;
+  const bestTorrentTitle = best.title;
+  const bestDebridId = best.debridId;
+
+  // Ensure status is downloaded and we have a direct video link.
+  let info;
+  try {
+    info = await provider.getTorrentInfo({ id: bestDebridId });
+  } catch {
+    return;
+  }
+
+  if (String(info.status || '') !== 'downloaded') return;
+
+  // If no links, select biggest video file.
+  if (!Array.isArray(info.links) || info.links.filter(Boolean).length === 0) {
+    const vids = (info.files || [])
+      .filter((f) => {
+        const p = String(f.path || '').toLowerCase();
+        return p.endsWith('.mkv') || p.endsWith('.mp4') || p.endsWith('.avi') || p.endsWith('.m2ts') || p.endsWith('.mts') || p.endsWith('.m4v') || p.endsWith('.mov');
+      })
+      .sort((a, b) => Number(b.bytes || 0) - Number(a.bytes || 0));
+
+    if (vids[0]?.id) {
+      try {
+        await provider.selectFiles({ id: bestDebridId, fileIds: [Number(vids[0].id)] });
+        info = await provider.getTorrentInfo({ id: bestDebridId });
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // Build debridUrls from info
+  let video = '';
+  let subtitle = '';
+  try {
+    const files = Array.isArray(info?.files) ? info.files : [];
+    const links = Array.isArray(info?.links) ? info.links : [];
+    const isVideo = (p) => {
+      const s = String(p || '').toLowerCase();
+      return s.endsWith('.mkv') || s.endsWith('.mp4') || s.endsWith('.avi') || s.endsWith('.m2ts') || s.endsWith('.mts') || s.endsWith('.m4v') || s.endsWith('.mov');
+    };
+    for (let i = 0; i < files.length; i++) {
+      const p = String(files[i]?.path || '');
+      const link = typeof links[i] === 'string' ? links[i] : '';
+      if (!link) continue;
+      const pl = p.toLowerCase();
+      if (!subtitle && pl.endsWith('.srt')) subtitle = link;
+      if (!video && isVideo(p)) video = link;
+    }
+  } catch {}
+
+  if (!video) return;
 
   console.log(`UPGRADE: movie="${movieTitle}" rank ${currentRank} -> ${bestRank} (release="${bestTorrentTitle}")`);
-  await dailyLog.log(`UPGRADE: movie="${movieTitle}" from_rank=${currentRank} to_rank=${bestRank} release=${JSON.stringify(bestTorrentTitle)}`);
+  await dailyLog.log(`UPGRADE: movie="${movieTitle}" from_rank=${currentRank} to_rank=${bestRank} release=${JSON.stringify(bestTorrentTitle)} debridId=${JSON.stringify(bestDebridId)}`);
 
   // Destructive removal requested by user
   try {
@@ -298,9 +387,9 @@ async function maybeUpgradeMovie({ movieTitle }) {
   const dlRes = await runAutoDownload({
     provider,
     movieTitle,
-    movieYear: entry2?.year ?? null,
+    movieYear: entry?.year ?? null,
     destDir,
-    debridUrls: urls2,
+    debridUrls: { video, subtitle },
     plexSectionId: process.env.PLEX_SECTION_ID_FILMES || '1',
     logger: console
   });
@@ -319,20 +408,6 @@ async function maybeUpgradeMovie({ movieTitle }) {
     imported_rank: bestRank,
     imported_at: new Date().toISOString()
   });
-
-  // Cleanup: remove torrents that are worse/equal than the now-imported one.
-  try {
-    const entry3 = getCachedMovie(cache, movieTitle);
-    const torrents3 = entry3?.torrents || {};
-    for (const [otherTitle, other] of Object.entries(torrents3)) {
-      if (otherTitle === bestTorrentTitle) continue;
-      const otherId = other?.debrid_id ? String(other.debrid_id) : '';
-      if (!otherId) continue;
-      const otherRank = priorityRank({ res: other?.resolution, codec: other?.codec });
-      if (otherRank && otherRank < bestRank) continue; // keep better ones (if any)
-      try { await provider.removeTorrent({ id: otherId }); } catch {}
-    }
-  } catch {}
 }
 
 for (const movieTitle of Object.keys(cache)) {

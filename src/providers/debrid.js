@@ -139,6 +139,30 @@ export class DebridProvider {
     return { id: String(data.id) };
   }
 
+  async listTorrents() {
+    const url = `${this.baseUrl}/torrents`;
+
+    let data;
+    try {
+      ({ data } = await axiosWith429Retry(() => axios.get(url, { headers: this._authHeaders() }), { url, baseDelayMs: retryBaseDelayMs }));
+      if (process.env.DEBRID_VERBOSE === '1' || String(process.env.DEBRID_VERBOSE || '').toLowerCase() === 'true') {
+        console.log(`HTTP OK: GET ${url}`);
+      }
+    } catch (e) {
+      const d = axiosErrDetails(e);
+      throw new Error(`listTorrents failed: url=${url} status=${d.status ?? 'n/a'} err=${d.msg}${d.body ? ` body=${d.body}` : ''}`);
+    }
+
+    if (!Array.isArray(data)) return [];
+    return data
+      .map((t) => ({
+        id: t?.id != null ? String(t.id) : '',
+        filename: t?.filename != null ? String(t.filename) : '',
+        status: t?.status != null ? String(t.status) : ''
+      }))
+      .filter((t) => t.id);
+  }
+
   async getTorrentInfo({ id }) {
     const url = `${this.baseUrl}/torrents/info/${encodeURIComponent(id)}`;
 
