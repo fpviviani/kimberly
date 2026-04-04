@@ -553,6 +553,20 @@ docker compose run --rm crawler-cli sh -lc 'node src/bin/cli.js "https://boxd.it
 
 Esta seção mostra o **uso manual** (para rodar agora, sem esperar o CRON).
 
+#### (Novo) Upgrade automático de qualidade (48h)
+
+Se você habilitar upgrades, o `debrid-monitor` pode **substituir automaticamente** um filme já importado por uma versão melhor (com base na mesma ordenação de qualidade do projeto), **desde que** o torrent melhor fique `downloaded` no Real-Debrid dentro da janela configurada.
+
+- Ele usa `priorityRank` (2160p > 1080p x265 > 1080p x264 > 1080p > 720p > sem res)
+- A janela padrão é **48h**
+- A legenda é **ignorara** no upgrade (se for melhor qualidade, ele troca mesmo sem `.srt`)
+- A substituição é **destrutiva**: faz `rm -rf` na pasta atual do filme antes de baixar a melhor
+
+Variáveis:
+- `ALLOW_UPGRADES=true`
+- `UPGRADE_WINDOW_HOURS=48`
+
+
 Atalhos (Docker):
 - Linux: `make monitor`
 - Windows: `.\\scripts\\docker.ps1 monitor` (ou `.\\scripts\\docker.cmd monitor`)
