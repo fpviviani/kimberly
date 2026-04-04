@@ -100,7 +100,25 @@ function titleTokens(s) {
 function releaseMatchesMovieTitle(movieTitle, releaseTitle) {
   const tokens = titleTokens(movieTitle);
   if (!tokens.length) return true;
-  const hay = ` ${normalizeReleaseTitle(releaseTitle)} `;
+
+  const releaseNorm = normalizeReleaseTitle(releaseTitle);
+  const hay = ` ${releaseNorm} `;
+
+  // Special handling for 1-word movie titles (too ambiguous: e.g. "Dreams").
+  // Require:
+  // - the token appears as a whole word in the release title
+  // - AND the release title isn't "too long" (heuristic to avoid matching unrelated titles)
+  //
+  // This keeps reasonable variants like "Akira Kurosawa's Dreams" (few tokens),
+  // while rejecting unrelated long titles like "Summer Dreams the Story of the Beach Boys".
+  if (tokens.length === 1) {
+    const t = tokens[0];
+    if (!hay.includes(` ${t} `)) return false;
+
+    const relTokens = titleTokens(releaseTitle);
+    return relTokens.length > 0 && relTokens.length <= 4;
+  }
+
   return tokens.every((t) => hay.includes(` ${t} `));
 }
 

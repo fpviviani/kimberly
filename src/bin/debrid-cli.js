@@ -14,6 +14,24 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { initDailyLogger } from '../logging.js';
 
+function normalizeCodec(c) {
+  const s = String(c ?? '').toLowerCase();
+  if (!s) return '';
+  if (s === 'hevc') return 'h265';
+  return s;
+}
+
+function priorityRank({ res, codec }) {
+  const r = String(res ?? '').toLowerCase();
+  const c = normalizeCodec(codec);
+  if (r === '2160p') return 1;
+  if (r === '1080p' && (c === 'h265' || c === 'x265')) return 2;
+  if (r === '1080p' && (c === 'h264' || c === 'x264')) return 3;
+  if (r === '1080p') return 4;
+  if (r === '720p') return 5;
+  return 6;
+}
+
 function bytesToGiB(b) {
   return b / (1024 ** 3);
 }
@@ -496,7 +514,18 @@ for (const movie of movies) {
     }
 
     if (okToMarkExecuted) {
-      cache = patchMovie(cache, movie.title, { process_executed: true });
+      // Store import metadata so debrid-monitor can do quality upgrades within a window.
+      const entry2 = getCachedMovie(cache, movie.title);
+      const torrentObj2 = entry2?.torrents?.[res.attempt?.title];
+      const rank = priorityRank({ res: torrentObj2?.resolution, codec: torrentObj2?.codec });
+
+      cache = patchMovie(cache, movie.title, {
+        process_executed: true,
+        final_path: dlRes?.movieDestDir || null,
+        imported_release_title: res.attempt?.title || '',
+        imported_rank: rank,
+        imported_at: new Date().toISOString()
+      });
       await saveCache(cachePath, cache);
     } else {
       const msg = autoDownload ? `some downloads failed (movie="${movie.title}")` : `AUTO_DOWNLOAD is disabled (movie="${movie.title}")`;

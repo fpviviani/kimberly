@@ -33,11 +33,12 @@ export function getCachedMovie(cache, movieTitle) {
   const entry = cache?.[key];
   if (!entry || typeof entry !== 'object') return null;
 
-  // New schema: { process_executed, year, torrents: { ... } }
+  // New schema: keep *all* movie-level fields (e.g. imported_* metadata), but normalize torrents.
   if (entry.torrents && typeof entry.torrents === 'object') {
     const torrentTitles = Object.keys(entry.torrents);
     if (torrentTitles.length === 0) return null;
     return {
+      ...entry,
       process_executed: entry.process_executed ?? false,
       year: entry.year ?? null,
       torrents: entry.torrents
@@ -86,6 +87,7 @@ export function upsertCachedMovie(cache, movieTitle, releases, opts = {}) {
   const year = (opts && Object.prototype.hasOwnProperty.call(opts, 'year')) ? opts.year : null;
 
   cache[key] = {
+    ...prevEntry,
     process_executed: prevEntry.process_executed ?? false,
     year: prevEntry.year ?? year ?? null,
     torrents
@@ -106,7 +108,7 @@ export function patchCachedTorrent(cache, movieTitle, torrentTitle, patch) {
 
   torrents[t] = { ...prevTorrent, ...patch };
 
-  cache[m] = { process_executed: entry.process_executed ?? false, year: entry.year ?? null, torrents };
+  cache[m] = { ...entry, process_executed: entry.process_executed ?? false, year: entry.year ?? null, torrents };
   return cache;
 }
 
