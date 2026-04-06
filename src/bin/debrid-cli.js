@@ -157,17 +157,6 @@ function inferYearFromReleaseTitle(title) {
   return y && /^\d{4}$/.test(String(y)) ? Number(y) : null;
 }
 
-function priorityRank({ res, codec }) {
-  const r = String(res ?? '').toLowerCase();
-  const c = normalizeCodec(codec);
-  if (r === '2160p') return 1;
-  if (r === '1080p' && (c === 'h265' || c === 'x265')) return 2;
-  if (r === '1080p' && (c === 'h264' || c === 'x264')) return 3;
-  if (r === '1080p') return 4;
-  if (r === '720p') return 5;
-  return 6;
-}
-
 const args = process.argv.slice(2);
 const maybeMoviesJson = args.find((a) => a?.trim?.().startsWith('['));
 const listUrl = args.find((a) => /^https?:\/\//i.test(a)) || null;
