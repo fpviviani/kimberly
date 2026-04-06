@@ -465,6 +465,7 @@ for (const movie of movies) {
     // Only mark process_executed=true after ALL required downloads (video/subtitle) finish successfully.
     // If AUTO_DOWNLOAD is disabled, we should NOT mark as executed.
     let okToMarkExecuted = false;
+    let dlRes = null;
 
     if (autoDownload && destDir) {
       const entry = getCachedMovie(cache, movie.title);
@@ -477,7 +478,7 @@ for (const movie of movies) {
         await saveCache(cachePath, cache);
       }
 
-      const dlRes = await runAutoDownload({
+      dlRes = await runAutoDownload({
         provider,
         movieTitle: movie.title,
         movieYear: inferredYear,
