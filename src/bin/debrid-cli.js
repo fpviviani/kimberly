@@ -104,13 +104,6 @@ async function ensureTorrentPath({ cachePath, cache, movieTitle, attemptTitle, t
   return { cache, torrent_path: outPath, magnet: '' };
 }
 
-function normalizeCodec(c) {
-  const s = String(c ?? '').toLowerCase();
-  if (!s) return '';
-  if (s === 'hevc') return 'h265';
-  return s;
-}
-
 function normalizeReleaseTitle(s) {
   return String(s ?? '')
     .toLowerCase()
