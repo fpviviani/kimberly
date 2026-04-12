@@ -36,7 +36,13 @@ function filenameFromUrl(url) {
   try {
     const u = new URL(url);
     const base = path.basename(u.pathname);
-    return base && base !== '/' ? base : null;
+    if (!base || base === '/') return null;
+    // URLs often include percent-encoding (%20 etc.). Decode for a friendly on-disk name.
+    try {
+      return decodeURIComponent(base);
+    } catch {
+      return base;
+    }
   } catch {
     return null;
   }
