@@ -98,7 +98,7 @@ export class QbittorrentClient {
     return resp.data;
   }
 
-  async addMagnet({ magnet, savePath, category = '', tags = '', paused = true, skipChecking = false } = {}) {
+  async addMagnet({ magnet, savePath, category = '', tags = '', paused = true, skipChecking = false, rootFolder = false } = {}) {
     if (!magnet) throw new Error('QBIT: addMagnet missing magnet');
     const body = new URLSearchParams();
     body.set('urls', String(magnet));
@@ -107,6 +107,10 @@ export class QbittorrentClient {
     if (tags) body.set('tags', String(tags));
     body.set('paused', paused ? 'true' : 'false');
     body.set('skip_checking', skipChecking ? 'true' : 'false');
+
+    // Avoid creating an extra subfolder under savepath. We want qBittorrent to hash-check
+    // the files already present in the target folder.
+    body.set('root_folder', rootFolder ? 'true' : 'false');
 
     const resp = await this.api.post('/api/v2/torrents/add', body, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
@@ -119,7 +123,7 @@ export class QbittorrentClient {
     return { ok: true };
   }
 
-  async addTorrentFile({ torrentPath, savePath, category = '', tags = '', paused = true, skipChecking = false } = {}) {
+  async addTorrentFile({ torrentPath, savePath, category = '', tags = '', paused = true, skipChecking = false, rootFolder = false } = {}) {
     if (!torrentPath) throw new Error('QBIT: addTorrentFile missing torrentPath');
 
     const form = new FormData();
@@ -129,6 +133,7 @@ export class QbittorrentClient {
     if (tags) form.append('tags', String(tags));
     form.append('paused', paused ? 'true' : 'false');
     form.append('skip_checking', skipChecking ? 'true' : 'false');
+    form.append('root_folder', rootFolder ? 'true' : 'false');
 
     const resp = await this.api.post('/api/v2/torrents/add', form, {
       headers: form.getHeaders()
@@ -173,6 +178,28 @@ export class QbittorrentClient {
       const list = await this.listTorrents();
       const hit = list.find((t) => String(t.hash || '').toLowerCase() === target);
       if (hit) return hit;
+      await sleep(pollMs);
+    }
+    return null;
+  }
+
+  async waitForMetadata({ infoHash, timeoutMs = 120_000, pollMs = 1000 } = {}) {
+    const target = normalizeInfoHash(infoHash);
+    if (!target) throw new Error('QBIT: waitForMetadata missing/invalid infoHash');
+
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const list = await this.listTorrents();
+      const hit = list.find((t) => String(t.hash || '').toLowerCase() === target);
+      if (!hit) {
+        await sleep(pollMs);
+        continue;
+      }
+
+      const state = String(hit.state || '').toLowerCase();
+      // metaDL / checkingDL / queuedDL etc.
+      if (state && state !== 'metadl') return hit;
+
       await sleep(pollMs);
     }
     return null;

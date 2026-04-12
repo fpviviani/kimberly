@@ -47,12 +47,12 @@ export async function maybeSeedWithQbittorrent({
     infoHash = await infoHashFromTorrentFile(torrentPath);
     if (!infoHash) return { ok: true, skipped: true, reason: 'could not compute infohash from torrent file' };
 
-    await qbt.addTorrentFile({ torrentPath, savePath, category, tags, paused: true, skipChecking: false });
+    await qbt.addTorrentFile({ torrentPath, savePath, category, tags, paused: true, skipChecking: false, rootFolder: false });
   } else if (magnet && String(magnet).startsWith('magnet:')) {
     infoHash = QbittorrentClient.infoHashFromMagnet(magnet);
     if (!infoHash) return { ok: true, skipped: true, reason: 'could not parse infohash from magnet' };
 
-    await qbt.addMagnet({ magnet, savePath, category, tags, paused: true, skipChecking: false });
+    await qbt.addMagnet({ magnet, savePath, category, tags, paused: true, skipChecking: false, rootFolder: false });
   } else {
     return { ok: true, skipped: true, reason: 'missing magnet/torrentPath' };
   }
@@ -61,6 +61,9 @@ export async function maybeSeedWithQbittorrent({
   if (!t) {
     return { ok: false, error: 'torrent not found in qBittorrent after add' };
   }
+
+  // For magnets, wait until metadata is available; otherwise recheck is unreliable.
+  await qbt.waitForMetadata({ infoHash, timeoutMs: 120_000, pollMs: 1000 });
 
   await qbt.recheck({ hashes: [infoHash] });
   await qbt.start({ hashes: [infoHash] });
