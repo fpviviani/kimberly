@@ -4,6 +4,7 @@ import { defaultCachePath, loadCache, saveCache, getCachedMovie, patchCachedTorr
 import { DebridProvider } from '../providers/debrid.js';
 import { runAutoDownload } from '../auto-download.js';
 import { maybeSeedWithQbittorrent } from '../qbt-seed.js';
+import { plexIsMovieWatched } from '../plex.js';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { initDailyLogger } from '../logging.js';
@@ -84,8 +85,7 @@ function parseIsoDate(s) {
 }
 
 const upgradesEnabled = (process.env.ALLOW_UPGRADES || '0') === '1' || (process.env.ALLOW_UPGRADES || '').toLowerCase() === 'true';
-const upgradeWindowHours = Number(process.env.UPGRADE_WINDOW_HOURS || '48');
-const upgradeWindowMs = (Number.isFinite(upgradeWindowHours) && upgradeWindowHours > 0) ? upgradeWindowHours * 3600_000 : 48 * 3600_000;
+const upgradeSkipIfWatched = (process.env.UPGRADE_SKIP_IF_WATCHED || '1') === '1' || (process.env.UPGRADE_SKIP_IF_WATCHED || '').toLowerCase() === 'true';
 
 const autoDownload = (process.env.AUTO_DOWNLOAD || '0') === '1' || (process.env.AUTO_DOWNLOAD || '').toLowerCase() === 'true';
 const destDir = process.env.AUTO_DOWNLOAD_DEST_DIR;
@@ -277,9 +277,24 @@ async function maybeUpgradeMovie({ movieTitle }) {
   if (!entry?.process_executed) return;
   if (!upgradesEnabled) return;
 
-  const importedAt = parseIsoDate(entry.imported_at);
-  if (!importedAt) return;
-  if ((Date.now() - importedAt.getTime()) > upgradeWindowMs) return;
+  // Upgrade gate: do not upgrade movies already watched in Plex.
+  if (upgradeSkipIfWatched) {
+    try {
+      const watch = await plexIsMovieWatched({ title: movieTitle, year: entry?.year ?? null });
+      cache = patchMovie(cache, movieTitle, {
+        plex_watched: Boolean(watch?.watched),
+        plex_last_checked_at: new Date().toISOString()
+      });
+
+      if (watch?.watched) {
+        // Movie was watched; keep current files.
+        return;
+      }
+    } catch {
+      // If Plex check fails, be conservative: do not upgrade.
+      return;
+    }
+  }
 
   const currentRank = Number(entry.imported_rank || 0) || 0;
   if (!currentRank) return;

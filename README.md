@@ -564,7 +564,7 @@ Se você habilitar upgrades, o `debrid-monitor` pode **substituir automaticament
 
 Variáveis:
 - `ALLOW_UPGRADES=true`
-- `UPGRADE_WINDOW_HOURS=48`
+- `UPGRADE_SKIP_IF_WATCHED=true` (default): só faz upgrade automático se o filme **não** estiver marcado como assistido no Plex (`viewCount/lastViewedAt`).
 
 
 Atalhos (Docker):

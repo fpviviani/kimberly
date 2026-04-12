@@ -564,7 +564,7 @@ When enabled, `debrid-monitor` can **automatically replace** an already imported
 
 Env vars:
 - `ALLOW_UPGRADES=true`
-- `UPGRADE_WINDOW_HOURS=48`
+- `UPGRADE_SKIP_IF_WATCHED=true` (default): only auto-upgrades if the movie is **not** marked as watched in Plex (`viewCount/lastViewedAt`).
 
 
 Shortcuts (Docker):
