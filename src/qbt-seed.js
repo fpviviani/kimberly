@@ -43,6 +43,8 @@ export async function maybeSeedWithQbittorrent({
   // Prefer .torrent file when available (avoids being stuck at "Downloading metadata").
   let infoHash = '';
 
+  const itorrentsFallback = isTrue(process.env.QBT_ITORRENTS_FALLBACK);
+
   if (torrentPath) {
     infoHash = await infoHashFromTorrentFile(torrentPath);
     if (!infoHash) return { ok: true, skipped: true, reason: 'could not compute infohash from torrent file' };
@@ -52,7 +54,29 @@ export async function maybeSeedWithQbittorrent({
     infoHash = QbittorrentClient.infoHashFromMagnet(magnet);
     if (!infoHash) return { ok: true, skipped: true, reason: 'could not parse infohash from magnet' };
 
-    await qbt.addMagnet({ magnet, savePath, category, tags, paused: true, skipChecking: false, rootFolder: false });
+    // Optional: if metadata is slow/unreliable, try to fetch .torrent by infohash from itorrents.
+    if (itorrentsFallback) {
+      try {
+        const itUrl = `https://itorrents.org/torrent/${String(infoHash).toUpperCase()}.torrent`;
+        const dir = process.env.QBT_ITORRENTS_CACHE_DIR || 'torrents';
+        const out = `${dir}/itorrents-${infoHash}.torrent`;
+
+        const axios = (await import('axios')).default;
+        const resp = await axios.get(itUrl, { responseType: 'arraybuffer', timeout: 30_000, validateStatus: () => true });
+        if (resp.status >= 200 && resp.status < 300 && resp.data) {
+          await fs.mkdir(dir, { recursive: true });
+          await fs.writeFile(out, Buffer.from(resp.data));
+
+          await qbt.addTorrentFile({ torrentPath: out, savePath, category, tags, paused: true, skipChecking: false, rootFolder: false });
+        } else {
+          await qbt.addMagnet({ magnet, savePath, category, tags, paused: true, skipChecking: false, rootFolder: false });
+        }
+      } catch {
+        await qbt.addMagnet({ magnet, savePath, category, tags, paused: true, skipChecking: false, rootFolder: false });
+      }
+    } else {
+      await qbt.addMagnet({ magnet, savePath, category, tags, paused: true, skipChecking: false, rootFolder: false });
+    }
   } else {
     return { ok: true, skipped: true, reason: 'missing magnet/torrentPath' };
   }

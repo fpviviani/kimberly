@@ -617,6 +617,7 @@ Variáveis:
 - `QBT_USERNAME` / `QBT_PASSWORD` (opcional; se você configurar “bypass localhost” pode deixar vazio)
 - `QBT_CATEGORY` (opcional)
 - `QBT_TAGS` (opcional, ex: `kimberly`)
+- `QBT_ITORRENTS_FALLBACK=true` (opcional): se não houver `.torrent` no cache, tenta baixar via **itorrents.org** usando o infohash do magnet (melhora a chance de seed sem travar em metadata)
 
 
 

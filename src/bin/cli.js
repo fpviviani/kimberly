@@ -55,7 +55,7 @@ function isDebridActiveTorrent(t) {
   return st === 'queued' || st === 'downloading';
 }
 
-function pickMagnet(release) {
+function pickLinks(release) {
   // Different indexers/providers may name it differently.
   const candidates = [
     release.magnetUrl,
@@ -64,12 +64,10 @@ function pickMagnet(release) {
     release.infoUrl
   ].filter(Boolean);
 
-  // Prefer magnet:
-  const magnet = candidates.find((u) => typeof u === 'string' && u.startsWith('magnet:'));
-  if (magnet) return magnet;
+  const magnet = candidates.find((u) => typeof u === 'string' && u.startsWith('magnet:')) || '';
+  const torrentUrl = candidates.find((u) => typeof u === 'string' && /^https?:\/\//i.test(u) && !u.startsWith('magnet:')) || '';
 
-  // Sometimes downloadUrl is an http(s) torrent link; return anyway.
-  return candidates[0] ?? null;
+  return { magnet, torrentUrl };
 }
 
 function normalizeReleaseTitle(s) {
@@ -459,7 +457,7 @@ await Promise.all(
           .filter((r) => typeof r?.size === 'number' && r.size >= movieMinBytes && r.size <= movieMaxBytes)
           .map(async (r) => {
             const parsed = parseReleaseTitle(r.title);
-            const pickedUrl = pickMagnet(r);
+            const picked = pickLinks(r);
             const obj = {
               title: r.title,
               parsedName: parsed.name,
@@ -472,8 +470,8 @@ await Promise.all(
               seeders: r.seeders,
               leechers: r.leechers,
               publishDate: r.publishDate,
-              magnet: (typeof pickedUrl === 'string' && pickedUrl.startsWith('magnet:')) ? pickedUrl : '',
-              torrentUrl: (typeof pickedUrl === 'string' && /^https?:\/\//i.test(pickedUrl) && !pickedUrl.startsWith('magnet:')) ? pickedUrl : ''
+              magnet: picked.magnet || '',
+              torrentUrl: picked.torrentUrl || ''
             };
 
             // STUB (commented): if this release has no magnet, this is where you would download a .torrent
@@ -543,7 +541,9 @@ await Promise.all(
         finalMatches = await Promise.all(
           finalMatches.map((m) =>
             dlLimit(async () => {
-              if (typeof m.downloadUrl !== 'string' || m.downloadUrl.startsWith('magnet:')) return m;
+              // If Prowlarr provided a torrent URL, save the .torrent even if we also have a magnet.
+              // This is useful for qBittorrent seeding (avoids being stuck at "Downloading metadata").
+              if (!m.torrentUrl || typeof m.torrentUrl !== 'string' || !/^https?:\/\//i.test(m.torrentUrl)) return m;
 
               try {
                 const safeBase = String(m.title || 'torrent')
@@ -552,7 +552,7 @@ await Promise.all(
                   .slice(0, 120);
 
                 const dl = await downloadTorrentStub({
-                  url: m.downloadUrl,
+                  url: m.torrentUrl,
                   outPath: `torrents/${safeBase}.torrent`,
                   headers: { 'X-Api-Key': apiKey },
                   timeoutMs: 60_000
@@ -563,9 +563,10 @@ await Promise.all(
                 }
 
                 if (dl?.kind === 'redirect' && typeof dl.location === 'string' && dl.location.startsWith('magnet:')) {
-                  return { ...m, downloadUrl: dl.location };
+                  // If the torrent endpoint redirects to a magnet, keep the magnet too.
+                  return { ...m, magnet: m.magnet || dl.location };
                 }
-              } catch (e) {
+              } catch {
                 // non-fatal
               }
 

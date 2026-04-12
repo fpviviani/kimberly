@@ -617,6 +617,7 @@ Env vars:
 - `QBT_USERNAME` / `QBT_PASSWORD` (optional; if you bypass auth for localhost you can leave them empty)
 - `QBT_CATEGORY` (optional)
 - `QBT_TAGS` (optional, e.g. `kimberly`)
+- `QBT_ITORRENTS_FALLBACK=true` (optional): if there's no `.torrent` in cache, try fetching it from **itorrents.org** using the magnet infohash (improves seeding reliability)
 
 
 
