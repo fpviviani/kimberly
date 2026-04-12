@@ -231,7 +231,8 @@ async function checkTorrentStatus({ movieTitle, torrentTitle, t, entry }) {
       // Requires QBT_ENABLED=true and WebUI reachable.
       try {
         const mag = torrentObj?.magnet;
-        await maybeSeedWithQbittorrent({ magnet: mag, savePath: dlRes?.movieDestDir, logger: console });
+        const tpath = torrentObj?.torrent_path;
+        await maybeSeedWithQbittorrent({ magnet: mag, torrentPath: tpath, savePath: dlRes?.movieDestDir, logger: console });
       } catch (e) {
         console.log(`QBIT: seed failed: ${String(e?.message || e)}`);
       }

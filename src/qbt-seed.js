@@ -1,21 +1,34 @@
 import 'dotenv/config';
+import { promises as fs } from 'node:fs';
+import crypto from 'node:crypto';
+import bencodeMod from 'bencode';
 import { QbittorrentClient } from './qbittorrent.js';
 
 function isTrue(v) {
   return v === '1' || String(v || '').toLowerCase() === 'true';
 }
 
+function sha1Hex(buf) {
+  return crypto.createHash('sha1').update(buf).digest('hex');
+}
+
+async function infoHashFromTorrentFile(torrentPath) {
+  const raw = await fs.readFile(String(torrentPath));
+  const decoded = bencodeMod.default.decode(raw);
+  const info = decoded?.info;
+  if (!info) return '';
+  const enc = bencodeMod.default.encode(info);
+  return sha1Hex(enc);
+}
+
 export async function maybeSeedWithQbittorrent({
   magnet,
+  torrentPath,
   savePath,
   logger = console
 } = {}) {
   const enabled = isTrue(process.env.QBT_ENABLED);
   if (!enabled) return { ok: true, skipped: true, reason: 'QBT_ENABLED is false' };
-
-  if (!magnet || !String(magnet).startsWith('magnet:')) {
-    return { ok: true, skipped: true, reason: 'missing magnet' };
-  }
   if (!savePath) return { ok: true, skipped: true, reason: 'missing savePath' };
 
   const baseUrl = process.env.QBT_BASE_URL || 'http://127.0.0.1:8080';
@@ -27,13 +40,22 @@ export async function maybeSeedWithQbittorrent({
   const qbt = new QbittorrentClient({ baseUrl, username, password, logger });
   await qbt.loginBestEffort();
 
-  const infoHash = QbittorrentClient.infoHashFromMagnet(magnet);
-  if (!infoHash) {
-    return { ok: true, skipped: true, reason: 'could not parse infohash from magnet' };
-  }
+  // Prefer .torrent file when available (avoids being stuck at "Downloading metadata").
+  let infoHash = '';
 
-  // Add paused -> recheck -> start
-  await qbt.addMagnet({ magnet, savePath, category, tags, paused: true, skipChecking: false });
+  if (torrentPath) {
+    infoHash = await infoHashFromTorrentFile(torrentPath);
+    if (!infoHash) return { ok: true, skipped: true, reason: 'could not compute infohash from torrent file' };
+
+    await qbt.addTorrentFile({ torrentPath, savePath, category, tags, paused: true, skipChecking: false });
+  } else if (magnet && String(magnet).startsWith('magnet:')) {
+    infoHash = QbittorrentClient.infoHashFromMagnet(magnet);
+    if (!infoHash) return { ok: true, skipped: true, reason: 'could not parse infohash from magnet' };
+
+    await qbt.addMagnet({ magnet, savePath, category, tags, paused: true, skipChecking: false });
+  } else {
+    return { ok: true, skipped: true, reason: 'missing magnet/torrentPath' };
+  }
 
   const t = await qbt.waitForTorrentByInfoHash({ infoHash, timeoutMs: 30_000, pollMs: 1000 });
   if (!t) {

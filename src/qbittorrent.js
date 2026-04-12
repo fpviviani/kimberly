@@ -1,4 +1,6 @@
 import axios from 'axios';
+import FormData from 'form-data';
+import { createReadStream } from 'node:fs';
 
 function base(url) {
   return String(url || '').replace(/\/+$/, '');
@@ -112,6 +114,28 @@ export class QbittorrentClient {
 
     if (resp.status !== 200) {
       throw new Error(`QBIT: add magnet failed status=${resp.status} body=${String(resp.data || '')}`);
+    }
+
+    return { ok: true };
+  }
+
+  async addTorrentFile({ torrentPath, savePath, category = '', tags = '', paused = true, skipChecking = false } = {}) {
+    if (!torrentPath) throw new Error('QBIT: addTorrentFile missing torrentPath');
+
+    const form = new FormData();
+    form.append('torrents', createReadStream(String(torrentPath)));
+    if (savePath) form.append('savepath', String(savePath));
+    if (category) form.append('category', String(category));
+    if (tags) form.append('tags', String(tags));
+    form.append('paused', paused ? 'true' : 'false');
+    form.append('skip_checking', skipChecking ? 'true' : 'false');
+
+    const resp = await this.api.post('/api/v2/torrents/add', form, {
+      headers: form.getHeaders()
+    });
+
+    if (resp.status !== 200) {
+      throw new Error(`QBIT: add torrent file failed status=${resp.status} body=${String(resp.data || '')}`);
     }
 
     return { ok: true };
