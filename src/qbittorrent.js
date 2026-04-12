@@ -130,10 +130,13 @@ export class QbittorrentClient {
   async start({ hashes } = {}) {
     const body = new URLSearchParams();
     body.set('hashes', Array.isArray(hashes) ? hashes.join('|') : String(hashes || ''));
-    const resp = await this.api.post('/api/v2/torrents/start', body, {
+
+    // qBittorrent WebAPI uses "resume" (not "start") in v2.
+    const resp = await this.api.post('/api/v2/torrents/resume', body, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
     });
-    if (resp.status !== 200) throw new Error(`QBIT: start failed status=${resp.status}`);
+
+    if (resp.status !== 200) throw new Error(`QBIT: resume failed status=${resp.status}`);
     return { ok: true };
   }
 
