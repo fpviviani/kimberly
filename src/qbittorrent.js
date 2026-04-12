@@ -156,6 +156,19 @@ export class QbittorrentClient {
     return { ok: true };
   }
 
+  async remove({ hashes, deleteFiles = false } = {}) {
+    const body = new URLSearchParams();
+    body.set('hashes', Array.isArray(hashes) ? hashes.join('|') : String(hashes || ''));
+    body.set('deleteFiles', deleteFiles ? 'true' : 'false');
+
+    const resp = await this.api.post('/api/v2/torrents/delete', body, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+    });
+
+    if (resp.status !== 200) throw new Error(`QBIT: delete failed status=${resp.status}`);
+    return { ok: true };
+  }
+
   async start({ hashes } = {}) {
     const body = new URLSearchParams();
     body.set('hashes', Array.isArray(hashes) ? hashes.join('|') : String(hashes || ''));
