@@ -605,6 +605,21 @@ docker compose run --rm crawler-cli node src/bin/manual-import.js "Movie Name"
 
 ## Variáveis de ambiente úteis
 
+### (Opcional) Seed via qBittorrent
+
+Depois que o kimberly baixa/importa um filme, ele pode (opcionalmente) **adicionar o mesmo torrent no qBittorrent** apontando para a pasta final e mandar fazer **recheck + start** para ficar seedando.
+
+> Requer que a **WebUI do qBittorrent** esteja habilitada.
+
+Variáveis:
+- `QBT_ENABLED=true`
+- `QBT_BASE_URL=http://127.0.0.1:8080`
+- `QBT_USERNAME` / `QBT_PASSWORD` (opcional; se você configurar “bypass localhost” pode deixar vazio)
+- `QBT_CATEGORY` (opcional)
+- `QBT_TAGS` (opcional, ex: `kimberly`)
+
+
+
 - `REWRITE_CACHE` (default `false`): se `true/1`, o `cli.js` reescreve a entrada de cache **do filme atual** mesmo se já existir.
 - `MAX_NEW_MOVIES_PER_RUN` (default `5`): máximo de filmes *novos* que o `cli.js` adiciona ao cache por execução (`0` desabilita limite).
 - `DEBRID_VERBOSE` (default `false`): logs detalhados do fluxo de debrid.

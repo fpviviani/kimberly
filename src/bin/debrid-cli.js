@@ -8,6 +8,7 @@ import { tryMagnetsUntilDownloaded } from '../debrid-engine.js';
 import { defaultCachePath, loadCache, saveCache, getCachedMovie, upsertCachedMovie, patchCachedTorrent, patchMovie } from '../cache.js';
 import { spawn } from 'node:child_process'
 import { runAutoDownload } from '../auto-download.js';
+import { maybeSeedWithQbittorrent } from '../qbt-seed.js';
 import axios from 'axios';
 import crypto from 'node:crypto';
 import { promises as fs } from 'node:fs';
@@ -493,6 +494,15 @@ for (const movie of movies) {
 
       if (okToMarkExecuted) {
         await dailyLog.log(`DOWNLOADED: movie="${movie.title}" release="${res.attempt?.title || ''}" dest="${dlRes?.movieDestDir || destDir}"`);
+
+        // Optional: add the same torrent to qBittorrent for seeding (public torrents).
+        // Requires QBT_ENABLED=true and WebUI reachable.
+        try {
+          const mag = torrentObj?.magnet;
+          await maybeSeedWithQbittorrent({ magnet: mag, savePath: dlRes?.movieDestDir, logger: console });
+        } catch (e) {
+          console.log(`QBIT: seed failed: ${String(e?.message || e)}`);
+        }
       }
     }
 

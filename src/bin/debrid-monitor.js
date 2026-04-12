@@ -3,6 +3,7 @@ import 'dotenv/config';
 import { defaultCachePath, loadCache, saveCache, getCachedMovie, patchCachedTorrent, patchMovie } from '../cache.js';
 import { DebridProvider } from '../providers/debrid.js';
 import { runAutoDownload } from '../auto-download.js';
+import { maybeSeedWithQbittorrent } from '../qbt-seed.js';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { initDailyLogger } from '../logging.js';
@@ -226,6 +227,15 @@ async function checkTorrentStatus({ movieTitle, torrentTitle, t, entry }) {
 
       await dailyLog.log(`DOWNLOADED: movie="${movieTitle}" release="${torrentTitle}" dest="${dlRes?.movieDestDir || destDir}"`);
 
+      // Optional: add the same torrent to qBittorrent for seeding (public torrents).
+      // Requires QBT_ENABLED=true and WebUI reachable.
+      try {
+        const mag = torrentObj?.magnet;
+        await maybeSeedWithQbittorrent({ magnet: mag, savePath: dlRes?.movieDestDir, logger: console });
+      } catch (e) {
+        console.log(`QBIT: seed failed: ${String(e?.message || e)}`);
+      }
+
       // If upgrades are enabled, DO NOT remove better releases from RD.
       // We can still cleanup obviously worse/equal ones.
       try {
@@ -393,6 +403,13 @@ async function maybeUpgradeMovie({ movieTitle }) {
     plexSectionId: process.env.PLEX_SECTION_ID_FILMES || '1',
     logger: console
   });
+
+  // Optional: if we have the magnet in cache, seed it in qBittorrent as well.
+  // For upgrades discovered via listTorrents(), we often won't have the magnet available.
+  try {
+    const mag = entry?.torrents?.[bestTorrentTitle]?.magnet;
+    await maybeSeedWithQbittorrent({ magnet: mag, savePath: dlRes?.movieDestDir, logger: console });
+  } catch {}
 
   const ok = Boolean(dlRes?.okAll && dlRes?.downloadedAny && dlRes?.movedToLibrary);
   if (!ok) {
